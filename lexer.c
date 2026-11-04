@@ -387,6 +387,39 @@ int is_pitch_literal(Lexer *lexer)
     return 1;
 }
 
+// Read a newline, treating CRLF as one logical newline.
+Token read_newline(Lexer *lexer)
+{
+    Token token = {0};
+
+    token.type = TOKEN_NEWLINE;
+    token.line = lexer->line;
+    token.column = lexer->column;
+
+    int length = 1;
+
+    // CRLF consists of two characters but represents one newline.
+    if (lexer->source[lexer->position] == '\r' &&
+        lexer->source[lexer->position + 1] == '\n')
+    {
+        length = 2;
+    }
+
+    // Preserve the original newline characters in the lexeme.
+    for (int i = 0; i < length; i++)
+    {
+        token.lexeme[i] = lexer->source[lexer->position + i];
+    }
+
+    token.lexeme[length] = '\0';
+
+    lexer->position += length;
+    lexer->line++;
+    lexer->column = 1;
+
+    return token;
+}
+
 // Main function for retrieving the next token.
 Token get_next_token(Lexer *lexer)
 {
@@ -398,6 +431,12 @@ Token get_next_token(Lexer *lexer)
     if (current == '\0')
     {
         return make_token(lexer, TOKEN_EOF, 0);
+    }
+
+    // Recognize newlines instead of skipping them as whitespace.
+    if (current == '\n' || current == '\r')
+    {
+        return read_newline(lexer);
     }
 
     if (lexer->source[lexer->position] == '"')
