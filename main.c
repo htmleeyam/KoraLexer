@@ -4,7 +4,7 @@
 int main()
 {
     Lexer lexer = {
-        "let result = 10 + 3.14 * 2",
+        "C4 F#3 Bb3 C-1 G9 C4Note C10 C - 1",
         0,
         1,
         1

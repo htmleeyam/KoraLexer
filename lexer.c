@@ -88,25 +88,78 @@ int is_identifier_part(char c) {
 }
 
 // Check whether a word is a reserved Kora keyword
-int is_keyword(const char *word) {
-    const char *keywords[] = {
-        "class", "struct", "track", "verse",
-        "function", "pure", "new", "let",
-        "const", "auto", "return", "if",
-        "else", "for", "while", "break",
-        "try", "catch", "throw", "tempo",
-        "volume", "beat", "add", "synch"
+TokenType classify_identifier(const char *word)
+{
+    struct KeywordEntry {
+        const char *word;
+        TokenType type;
     };
 
-    int count = sizeof(keywords) / sizeof(keywords[0]);
+    static const struct KeywordEntry reserved_words[] = {
+        // Structure
+        {"class", TOKEN_KEYWORD},
+        {"struct", TOKEN_KEYWORD},
+        {"track", TOKEN_KEYWORD},
+        {"verse", TOKEN_KEYWORD},
+        {"new", TOKEN_KEYWORD},
 
-    for (int i = 0; i < count; i++) {
-        if (strcmp(word, keywords[i]) == 0) {
-            return 1;
+        // Declarations
+        {"const", TOKEN_KEYWORD},
+        {"let", TOKEN_KEYWORD},
+        {"function", TOKEN_KEYWORD},
+        {"pure", TOKEN_KEYWORD},
+        {"return", TOKEN_KEYWORD},
+
+        // Music settings
+        {"tempo", TOKEN_KEYWORD},
+        {"volume", TOKEN_KEYWORD},
+        {"beat", TOKEN_KEYWORD},
+        {"add", TOKEN_KEYWORD},
+        {"synch", TOKEN_KEYWORD},
+
+        // Control flow
+        {"if", TOKEN_KEYWORD},
+        {"else", TOKEN_KEYWORD},
+        {"for", TOKEN_KEYWORD},
+        {"while", TOKEN_KEYWORD},
+        {"break", TOKEN_KEYWORD},
+
+        // Error handling
+        {"try", TOKEN_KEYWORD},
+        {"catch", TOKEN_KEYWORD},
+        {"throw", TOKEN_KEYWORD},
+
+        // Boolean and special
+        {"true", TOKEN_BOOLEAN},
+        {"false", TOKEN_BOOLEAN},
+        {"current", TOKEN_KEYWORD},
+
+        // Types
+        {"int", TOKEN_TYPE},
+        {"float", TOKEN_TYPE},
+        {"boolean", TOKEN_TYPE},
+        {"String", TOKEN_TYPE},
+        {"pitch", TOKEN_TYPE},
+        {"interval", TOKEN_TYPE},
+        {"event", TOKEN_TYPE},
+        {"pattern", TOKEN_TYPE},
+
+        // Interval units
+        {"st", TOKEN_INTERVAL_UNIT},
+        {"oct", TOKEN_INTERVAL_UNIT}
+    };
+
+    int count = sizeof(reserved_words) / sizeof(reserved_words[0]);
+
+    for (int i = 0; i < count; i++)
+    {
+        if (strcmp(word, reserved_words[i].word) == 0)
+        {
+            return reserved_words[i].type;
         }
     }
 
-    return 0;
+    return TOKEN_IDENTIFIER;
 }
 
 // Read an identifier or keyword
@@ -133,11 +186,7 @@ Token read_identifier(Lexer *lexer) {
     token.line = lexer->line;
     token.column = start_column;
 
-    if (is_keyword(token.lexeme)) {
-        token.type = TOKEN_KEYWORD;
-    } else {
-        token.type = TOKEN_IDENTIFIER;
-    }
+    token.type = classify_identifier(token.lexeme);
 
     return token;
 }
@@ -291,7 +340,54 @@ Token read_number(Lexer *lexer)
     return make_token(lexer, type, length);
 }
 
-// Main function for retrieving the next token
+// Check whether the current position begins a valid pitch literal.
+int is_pitch_literal(Lexer *lexer)
+{
+    const char *source = lexer->source;
+    int pos = lexer->position;
+
+    char note = source[pos];
+
+    // A pitch must begin with a note from A to G.
+    if (note < 'A' || note > 'G')
+    {
+        return 0;
+    }
+
+    int offset = 1;
+
+    // Optional sharp or flat accidental.
+    if (source[pos + offset] == '#' ||
+        source[pos + offset] == 'b')
+    {
+        offset++;
+    }
+
+    // Optional negative octave.
+    if (source[pos + offset] == '-')
+    {
+        offset++;
+    }
+
+    // Exactly one octave digit is required.
+    if (!isdigit((unsigned char)source[pos + offset]))
+    {
+        return 0;
+    }
+
+    offset++;
+
+    // A pitch cannot be immediately followed by an
+    // identifier character.
+    if (is_identifier_part(source[pos + offset]))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+// Main function for retrieving the next token.
 Token get_next_token(Lexer *lexer)
 {
     skip_whitespace(lexer);
@@ -304,6 +400,31 @@ Token get_next_token(Lexer *lexer)
         return make_token(lexer, TOKEN_EOF, 0);
     }
 
+    // Pitch literals must be checked before identifiers.
+    if (is_pitch_literal(lexer))
+    {
+        int start = lexer->position;
+        int length = 1;
+
+        // Include optional accidental.
+        if (lexer->source[start + length] == '#' ||
+            lexer->source[start + length] == 'b')
+        {
+            length++;
+        }
+
+        // Include optional negative octave.
+        if (lexer->source[start + length] == '-')
+        {
+            length++;
+        }
+
+        // Include octave digit.
+        length++;
+
+        return make_token(lexer, TOKEN_PITCH, length);
+    }
+
     // Identifiers and keywords.
     if (is_identifier_start(current))
     {
@@ -311,7 +432,7 @@ Token get_next_token(Lexer *lexer)
     }
 
     // Integer and float literals.
-    if (isdigit(current))
+    if (isdigit((unsigned char)current))
     {
         return read_number(lexer);
     }

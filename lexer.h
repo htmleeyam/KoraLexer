@@ -90,7 +90,8 @@ void skip_whitespace(Lexer *lexer);
 
 int is_identifier_start(char c);
 int is_identifier_part(char c);
-int is_keyword(const char *word);
+int is_pitch_literal(Lexer *lexer);
+TokenType classify_identifier(const char *word);
 
 Token read_identifier(Lexer *lexer);
 Token make_token(Lexer *lexer, TokenType type, int length);
