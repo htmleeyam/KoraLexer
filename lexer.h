@@ -98,5 +98,7 @@ Token make_token(Lexer *lexer, TokenType type, int length);
 Token get_next_token(Lexer *lexer);
 Token read_operator_or_delimiter(Lexer *lexer);
 Token read_number(Lexer *lexer);
+Token read_string(Lexer *lexer);
+Token read_comment(Lexer *lexer);
 
 #endif

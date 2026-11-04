@@ -400,6 +400,11 @@ Token get_next_token(Lexer *lexer)
         return make_token(lexer, TOKEN_EOF, 0);
     }
 
+    if (lexer->source[lexer->position] == '"')
+    {
+        return read_string(lexer);
+    }
+
     // Pitch literals must be checked before identifiers.
     if (is_pitch_literal(lexer))
     {
@@ -439,4 +444,59 @@ Token get_next_token(Lexer *lexer)
 
     // Operators and delimiters.
     return read_operator_or_delimiter(lexer);
+}
+
+Token read_string(Lexer *lexer)
+{
+    int start = lexer->position;
+    int start_line = lexer->line;
+    int start_column = lexer->column;
+
+    // Skip the opening quotation mark.
+    lexer->position++;
+    lexer->column++;
+
+    // Scan the contents until a closing quote or line/source ending.
+    while (lexer->source[lexer->position] != '\0' &&
+           lexer->source[lexer->position] != '"' &&
+           lexer->source[lexer->position] != '\n' &&
+           lexer->source[lexer->position] != '\r')
+    {
+        lexer->position++;
+        lexer->column++;
+    }
+
+    Token token = {0};
+    token.line = start_line;
+    token.column = start_column;
+
+    // Determine whether the string was properly closed.
+    if (lexer->source[lexer->position] == '"')
+    {
+        lexer->position++;
+        lexer->column++;
+        token.type = TOKEN_STRING;
+    }
+    else
+    {
+        token.type = TOKEN_ERROR;
+    }
+
+    // Copy the original quoted text into the token.
+    int length = lexer->position - start;
+    int copy_length = length;
+
+    if (copy_length > 255)
+    {
+        copy_length = 255;
+    }
+
+    for (int i = 0; i < copy_length; i++)
+    {
+        token.lexeme[i] = lexer->source[start + i];
+    }
+
+    token.lexeme[copy_length] = '\0';
+
+    return token;
 }

@@ -4,7 +4,7 @@
 int main()
 {
     Lexer lexer = {
-        "C4 F#3 Bb3 C-1 G9 C4Note C10 C - 1",
+        "\"hello\" \"Kora music language\" \"play {note}\" \"unfinished",
         0,
         1,
         1
