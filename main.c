@@ -4,10 +4,12 @@
 int main()
 {
     Lexer lexer = {
-        "first\nsecond\r\nthird",
-        0,
-        1,
-        1
+        "~~ comment only\n"
+        "first~* inline comment *~second\n"
+        "~* block\n"
+        "comment *~third\n"
+        "fourth",
+        0, 1, 1, 0, 0, 0
     };
 
     Token token;

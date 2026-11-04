@@ -420,10 +420,131 @@ Token read_newline(Lexer *lexer)
     return token;
 }
 
+
+// Read and skip Kora comments.
+// Returns 1 if a token must be returned.
+// Returns 0 if comment content was successfully skipped.
+int read_comment(Lexer *lexer, Token *token)
+{
+    const char *source = lexer->source;
+
+    // Check whether a new comment is starting.
+    if (!lexer->inside_block_comment)
+    {
+        // Line comment: ~~ 
+        if (source[lexer->position] == '~' &&
+            source[lexer->position + 1] == '~')
+        {
+            lexer->position += 2;
+            lexer->column += 2;
+
+            // Skip until the newline, but do not consume it.
+            while (source[lexer->position] != '\0' &&
+                   source[lexer->position] != '\n' &&
+                   source[lexer->position] != '\r')
+            {
+                lexer->position++;
+                lexer->column++;
+            }
+
+            return 0;
+        }
+
+        // Block comment: ~*
+        if (source[lexer->position] == '~' &&
+            source[lexer->position + 1] == '*')
+        {
+            lexer->inside_block_comment = 1;
+            lexer->block_comment_start_line = lexer->line;
+            lexer->block_comment_start_column = lexer->column;
+
+            lexer->position += 2;
+            lexer->column += 2;
+        }
+        else
+        {
+            // Invalid use of the comment marker.
+            *token = make_token(lexer, TOKEN_ERROR, 1);
+            return 1;
+        }
+    }
+
+    // Continue scanning the block comment.
+    while (lexer->inside_block_comment)
+    {
+        char current = source[lexer->position];
+
+        // End of source before the block comment closes.
+        if (current == '\0')
+        {
+            *token = (Token){0};
+
+            token->type = TOKEN_ERROR;
+            token->line = lexer->block_comment_start_line;
+            token->column = lexer->block_comment_start_column;
+
+            token->lexeme[0] = '~';
+            token->lexeme[1] = '*';
+            token->lexeme[2] = '\0';
+
+            lexer->inside_block_comment = 0;
+
+            return 1;
+        }
+
+        // Preserve newline tokens inside block comments.
+        if (current == '\n' || current == '\r')
+        {
+            *token = read_newline(lexer);
+            return 1;
+        }
+
+        // Block comment closing marker: *~
+        if (current == '*' && source[lexer->position + 1] == '~')
+        {
+            lexer->position += 2;
+            lexer->column += 2;
+
+            lexer->inside_block_comment = 0;
+
+            return 0;
+        }
+
+        // Consume ordinary block comment content.
+        lexer->position++;
+        lexer->column++;
+    }
+
+    return 0;
+}
+
 // Main function for retrieving the next token.
 Token get_next_token(Lexer *lexer)
 {
-    skip_whitespace(lexer);
+    Token comment_token;
+
+    // Skip whitespace and comments before reading the next token.
+    while (1)
+    {
+        skip_whitespace(lexer);
+
+        // Process a comment or continue an existing block comment.
+        if (lexer->inside_block_comment ||
+            lexer->source[lexer->position] == '~')
+        {
+            // A comment may produce a NEWLINE or ERROR token.
+            if (read_comment(lexer, &comment_token))
+            {
+                return comment_token;
+            }
+
+            // The comment was skipped. Check again for more whitespace
+            // or another comment before reading an ordinary token.
+            continue;
+        }
+
+        break;
+    }
 
     char current = lexer->source[lexer->position];
 
@@ -433,13 +554,14 @@ Token get_next_token(Lexer *lexer)
         return make_token(lexer, TOKEN_EOF, 0);
     }
 
-    // Recognize newlines instead of skipping them as whitespace.
+    // Recognize newlines.
     if (current == '\n' || current == '\r')
     {
         return read_newline(lexer);
     }
 
-    if (lexer->source[lexer->position] == '"')
+    // String literals.
+    if (current == '"')
     {
         return read_string(lexer);
     }
