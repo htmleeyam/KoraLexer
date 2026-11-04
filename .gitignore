@@ -1,0 +1,6 @@
+# Compiled programs
+*.exe
+*.out
+
+# Object files
+*.o
