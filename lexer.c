@@ -311,30 +311,54 @@ Token read_operator_or_delimiter(Lexer *lexer)
     }
 }
 
-// Reads numbers whether it is an integer or a float
+// Read an integer or float and detect malformed numeric sequences.
 Token read_number(Lexer *lexer)
 {
     int length = 0;
     TokenType type = TOKEN_INTEGER;
 
-    // Read whole-number digits.
-    while (isdigit(lexer->source[lexer->position + length]))
+    // Read the whole-number digits.
+    while (isdigit((unsigned char)lexer->source[lexer->position + length]))
     {
         length++;
     }
 
     // Check for a decimal point followed by a digit.
     if (lexer->source[lexer->position + length] == '.' &&
-        isdigit(lexer->source[lexer->position + length + 1]))
+        isdigit((unsigned char)lexer->source[lexer->position + length + 1]))
     {
         type = TOKEN_FLOAT;
         length++; // Include the decimal point.
 
-        // Read digits after the decimal point.
-        while (isdigit(lexer->source[lexer->position + length]))
+        // Read the decimal digits.
+        while (isdigit((unsigned char)lexer->source[lexer->position + length]))
         {
             length++;
         }
+
+        // A second decimal point followed by a digit is malformed.
+        if (lexer->source[lexer->position + length] == '.' &&
+            isdigit((unsigned char)lexer->source[lexer->position + length + 1]))
+        {
+            while (isdigit((unsigned char)lexer->source[lexer->position + length]) ||
+                   lexer->source[lexer->position + length] == '.')
+            {
+                length++;
+            }
+
+            return make_token(lexer, TOKEN_ERROR, length);
+        }
+    }
+
+    // A number cannot be immediately followed by identifier characters.
+    if (is_identifier_part(lexer->source[lexer->position + length]))
+    {
+        while (is_identifier_part(lexer->source[lexer->position + length]))
+        {
+            length++;
+        }
+
+        return make_token(lexer, TOKEN_ERROR, length);
     }
 
     return make_token(lexer, type, length);
