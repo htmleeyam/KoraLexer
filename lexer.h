@@ -11,7 +11,13 @@ typedef enum {
     TOKEN_PITCH,
     TOKEN_INTERVAL_UNIT,
     TOKEN_DURATION_UNIT,
-    TOKEN_STRING,
+    
+    // String interpolation
+    TOKEN_STRING_START,
+    TOKEN_STRING_TEXT,
+    TOKEN_INTERPOLATION_START,
+    TOKEN_INTERPOLATION_END,
+    TOKEN_STRING_END,
 
     // Arithmetic operators
     TOKEN_PLUS,
@@ -86,6 +92,11 @@ typedef struct {
     int inside_block_comment;
     int block_comment_start_line;
     int block_comment_start_column;
+
+    // String interpolation tracking
+    int inside_string;
+    int inside_interpolation;
+    int interpolation_brace_depth;
 } Lexer;
 
 // Function declarations
@@ -104,6 +115,7 @@ Token get_next_token(Lexer *lexer);
 Token read_operator_or_delimiter(Lexer *lexer);
 Token read_number(Lexer *lexer);
 Token read_string(Lexer *lexer);
+Token read_string_content(Lexer *lexer);
 int read_comment(Lexer *lexer, Token *token);
 Token read_newline(Lexer *lexer);
 

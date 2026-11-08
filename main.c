@@ -4,15 +4,15 @@
 int main()
 {
     Lexer lexer = {
-        .source =
-            "\"Hello Kora\"\n"
-            "\"Hello\\nWorld\"\n"
-            "\"She said \\\"Hello\\\"\"\n"
-            "\"Path: C:\\\\Kora\"\n"
-            "\"Tab\\tSeparated\"\n"
-            "\"Carriage\\rReturn\"\n"
-            "\"Literal \\{ brace\"\n"
-            "\"Invalid \\q\"\n",
+    .source =
+        "\"Hello {name}!\"\n"
+        "\"Score: {100 + 20}\"\n"
+        "\"Result: {calculate({value})}\"\n"
+        "\"Literal \\{ brace\"\n"
+        "\"Broken: {name\n"
+        "let recovered = 123\n"
+        "\"Back to normal {C4}\"\n",
+
 
         .position = 0,
         .line = 1,
@@ -20,7 +20,11 @@ int main()
 
         .inside_block_comment = 0,
         .block_comment_start_line = 0,
-        .block_comment_start_column = 0
+        .block_comment_start_column = 0,
+
+        .inside_string = 0,
+        .inside_interpolation = 0,
+        .interpolation_brace_depth = 0
     };
 
     Token token;
