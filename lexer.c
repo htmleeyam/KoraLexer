@@ -333,10 +333,16 @@ Token read_number(Lexer *lexer)
         length++;
     }
 
-    // Check for a decimal point followed by a digit.
-    if (lexer->source[lexer->position + length] == '.' &&
-        isdigit((unsigned char)lexer->source[lexer->position + length + 1]))
+    // Check whether a decimal point follows the whole-number digits.
+    if (lexer->source[lexer->position + length] == '.')
     {
+        // A decimal point must be followed by at least one digit.
+        if (!isdigit((unsigned char)lexer->source[lexer->position + length + 1]))
+        {
+            length++; // Include the trailing decimal point.
+            return make_token(lexer, TOKEN_ERROR, length);
+        }
+
         type = TOKEN_FLOAT;
         length++; // Include the decimal point.
 
@@ -625,7 +631,7 @@ Token get_next_token(Lexer *lexer)
         return make_token(lexer, TOKEN_PITCH, length);
     }
 
-    // Identifiers and keywords.
+    // Identifier and keyword recognition.
     if (is_identifier_start(current))
     {
         return read_identifier(lexer);
@@ -635,6 +641,28 @@ Token get_next_token(Lexer *lexer)
     if (isdigit((unsigned char)current))
     {
         return read_number(lexer);
+    }
+
+    // A decimal point cannot start a valid Kora float.
+    if (current == '.' &&
+        isdigit((unsigned char)lexer->source[lexer->position + 1]))
+    {
+        int length = 1;
+
+        // Consume the malformed decimal literal.
+        while (isdigit((unsigned char)lexer->source[lexer->position + length]) ||
+            lexer->source[lexer->position + length] == '.')
+        {
+            length++;
+        }
+
+        // Include any immediately attached identifier characters.
+        while (is_identifier_part(lexer->source[lexer->position + length]))
+        {
+            length++;
+        }
+
+        return make_token(lexer, TOKEN_ERROR, length);
     }
 
     // Operators and delimiters.

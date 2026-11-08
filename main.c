@@ -4,15 +4,19 @@
 int main()
 {
     Lexer lexer = {
-        .source = "let tempo = 120\n"
-                "constant volume = 80\n"
-                "auto let melody = C4\n"
-                "let duration = 2 bt\n"
-                "let interval = 3 semitones\n"
-                "let enabled = true\n"
-                "print(melody)\n"
-                "sync\n"
-                "synchronize\n",
+        .source = "var123abc\n"
+            "_note456\n"
+            "Song1\n"
+            "123abc\n"
+            "456xyz\n"
+            "my-name\n"
+            "0\n"
+            "123\n"
+            "78.90\n"
+            "12.50\n"
+            "12.34.56\n"
+            ".75\n"
+            "12.\n",
 
         .position = 0,
         .line = 1,
