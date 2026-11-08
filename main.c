@@ -4,13 +4,23 @@
 int main()
 {
     Lexer lexer = {
-        "var123abc\n"
-        "_note456\n"
-        "123abc\n"
-        "456xyz\n"
-        "12.34.56\n"
-        "78.90",
-        0, 1, 1, 0, 0, 0
+        .source = "let tempo = 120\n"
+                "constant volume = 80\n"
+                "auto let melody = C4\n"
+                "let duration = 2 bt\n"
+                "let interval = 3 semitones\n"
+                "let enabled = true\n"
+                "print(melody)\n"
+                "sync\n"
+                "synchronize\n",
+
+        .position = 0,
+        .line = 1,
+        .column = 1,
+
+        .inside_block_comment = 0,
+        .block_comment_start_line = 0,
+        .block_comment_start_column = 0
     };
 
     Token token;

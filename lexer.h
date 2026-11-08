@@ -1,4 +1,3 @@
-
 #ifndef LEXER_H
 #define LEXER_H
 
@@ -11,6 +10,7 @@ typedef enum {
     TOKEN_BOOLEAN,
     TOKEN_PITCH,
     TOKEN_INTERVAL_UNIT,
+    TOKEN_DURATION_UNIT,
     TOKEN_STRING,
 
     // Arithmetic operators

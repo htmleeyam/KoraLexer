@@ -1,4 +1,3 @@
-
 #include "lexer.h"
 #include <string.h>
 #include <ctype.h>
@@ -14,6 +13,7 @@ const char* token_type_name(TokenType type) {
         case TOKEN_BOOLEAN: return "BOOLEAN";
         case TOKEN_PITCH: return "PITCH";
         case TOKEN_INTERVAL_UNIT: return "INTERVAL_UNIT";
+        case TOKEN_DURATION_UNIT: return "DURATION_UNIT";
         case TOKEN_STRING: return "STRING";
 
         case TOKEN_PLUS: return "PLUS";
@@ -105,7 +105,9 @@ TokenType classify_identifier(const char *word)
 
         // Declarations
         {"const", TOKEN_KEYWORD},
+        {"constant", TOKEN_KEYWORD},
         {"let", TOKEN_KEYWORD},
+        {"auto", TOKEN_KEYWORD},
         {"function", TOKEN_KEYWORD},
         {"pure", TOKEN_KEYWORD},
         {"return", TOKEN_KEYWORD},
@@ -116,6 +118,8 @@ TokenType classify_identifier(const char *word)
         {"beat", TOKEN_KEYWORD},
         {"add", TOKEN_KEYWORD},
         {"synch", TOKEN_KEYWORD},
+        {"sync", TOKEN_KEYWORD},
+        {"synchronize", TOKEN_KEYWORD},
 
         // Control flow
         {"if", TOKEN_KEYWORD},
@@ -144,9 +148,15 @@ TokenType classify_identifier(const char *word)
         {"event", TOKEN_TYPE},
         {"pattern", TOKEN_TYPE},
 
-        // Interval units
+        // Interval units and aliases
         {"st", TOKEN_INTERVAL_UNIT},
-        {"oct", TOKEN_INTERVAL_UNIT}
+        {"semitone", TOKEN_INTERVAL_UNIT},
+        {"semitones", TOKEN_INTERVAL_UNIT},
+        {"oct", TOKEN_INTERVAL_UNIT},
+        {"octave", TOKEN_INTERVAL_UNIT},
+
+        // Duration units
+        {"bt", TOKEN_DURATION_UNIT}
     };
 
     int count = sizeof(reserved_words) / sizeof(reserved_words[0]);
