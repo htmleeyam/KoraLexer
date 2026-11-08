@@ -631,6 +631,22 @@ Token get_next_token(Lexer *lexer)
         return make_token(lexer, TOKEN_PITCH, length);
     }
 
+    // Detect incomplete pitch literals, such as C# or Bb.
+    if (current >= 'A' && current <= 'G' &&
+        (lexer->source[lexer->position + 1] == '#' ||
+        lexer->source[lexer->position + 1] == 'b'))
+    {
+        int length = 2;
+
+        // Consume any attached octave digits.
+        while (isdigit((unsigned char)lexer->source[lexer->position + length]))
+        {
+            length++;
+        }
+
+        return make_token(lexer, TOKEN_ERROR, length);
+    }
+
     // Identifier and keyword recognition.
     if (is_identifier_start(current))
     {

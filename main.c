@@ -4,19 +4,16 @@
 int main()
 {
     Lexer lexer = {
-        .source = "var123abc\n"
-            "_note456\n"
-            "Song1\n"
-            "123abc\n"
-            "456xyz\n"
-            "my-name\n"
-            "0\n"
-            "123\n"
-            "78.90\n"
-            "12.50\n"
-            "12.34.56\n"
-            ".75\n"
-            "12.\n",
+        .source =
+        "C4\n"
+        "F#3\n"
+        "Bb2\n"
+        "C-1\n"
+        "G9\n"
+        "H4\n"
+        "C#\n"
+        "C10\n"
+        "D#5\n",
 
         .position = 0,
         .line = 1,
