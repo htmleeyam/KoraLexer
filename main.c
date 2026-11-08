@@ -5,15 +5,14 @@ int main()
 {
     Lexer lexer = {
         .source =
-        "C4\n"
-        "F#3\n"
-        "Bb2\n"
-        "C-1\n"
-        "G9\n"
-        "H4\n"
-        "C#\n"
-        "C10\n"
-        "D#5\n",
+            "\"Hello Kora\"\n"
+            "\"Hello\\nWorld\"\n"
+            "\"She said \\\"Hello\\\"\"\n"
+            "\"Path: C:\\\\Kora\"\n"
+            "\"Tab\\tSeparated\"\n"
+            "\"Carriage\\rReturn\"\n"
+            "\"Literal \\{ brace\"\n"
+            "\"Invalid \\q\"\n",
 
         .position = 0,
         .line = 1,

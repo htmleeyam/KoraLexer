@@ -690,19 +690,58 @@ Token read_string(Lexer *lexer)
     int start = lexer->position;
     int start_line = lexer->line;
     int start_column = lexer->column;
+    int invalid_escape = 0;
 
     // Skip the opening quotation mark.
     lexer->position++;
     lexer->column++;
 
-    // Scan the contents until a closing quote or line/source ending.
+    // Scan the string contents.
     while (lexer->source[lexer->position] != '\0' &&
            lexer->source[lexer->position] != '"' &&
            lexer->source[lexer->position] != '\n' &&
            lexer->source[lexer->position] != '\r')
     {
-        lexer->position++;
-        lexer->column++;
+        // Check escape sequences.
+        if (lexer->source[lexer->position] == '\\')
+        {
+            char escaped = lexer->source[lexer->position + 1];
+
+            // Validate the character following the backslash.
+            if (escaped == '\\' ||
+                escaped == '"' ||
+                escaped == 'n' ||
+                escaped == 't' ||
+                escaped == 'r' ||
+                escaped == '{')
+            {
+                // Valid escape: consume both characters.
+                lexer->position += 2;
+                lexer->column += 2;
+            }
+            else
+            {
+                // Invalid escape sequence.
+                invalid_escape = 1;
+
+                // Consume the backslash and invalid character.
+                lexer->position++;
+                lexer->column++;
+
+                if (escaped != '\0' &&
+                    escaped != '\n' &&
+                    escaped != '\r')
+                {
+                    lexer->position++;
+                    lexer->column++;
+                }
+            }
+        }
+        else
+        {
+            lexer->position++;
+            lexer->column++;
+        }
     }
 
     Token token = {0};
@@ -714,10 +753,12 @@ Token read_string(Lexer *lexer)
     {
         lexer->position++;
         lexer->column++;
-        token.type = TOKEN_STRING;
+
+        token.type = invalid_escape ? TOKEN_ERROR : TOKEN_STRING;
     }
     else
     {
+        // Unterminated string or raw newline.
         token.type = TOKEN_ERROR;
     }
 
