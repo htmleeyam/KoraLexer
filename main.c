@@ -4,10 +4,13 @@
 int main()
 {
     Lexer lexer = {
-        "let result = 10 + 3.14 * 2",
-        0,
-        1,
-        1
+        "var123abc\n"
+        "_note456\n"
+        "123abc\n"
+        "456xyz\n"
+        "12.34.56\n"
+        "78.90",
+        0, 1, 1, 0, 0, 0
     };
 
     Token token;

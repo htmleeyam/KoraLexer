@@ -81,6 +81,11 @@ typedef struct {
     int position;
     int line;
     int column;
+
+    // Block comment tracking
+    int inside_block_comment;
+    int block_comment_start_line;
+    int block_comment_start_column;
 } Lexer;
 
 // Function declarations
@@ -90,12 +95,16 @@ void skip_whitespace(Lexer *lexer);
 
 int is_identifier_start(char c);
 int is_identifier_part(char c);
-int is_keyword(const char *word);
+int is_pitch_literal(Lexer *lexer);
+TokenType classify_identifier(const char *word);
 
 Token read_identifier(Lexer *lexer);
 Token make_token(Lexer *lexer, TokenType type, int length);
 Token get_next_token(Lexer *lexer);
 Token read_operator_or_delimiter(Lexer *lexer);
 Token read_number(Lexer *lexer);
+Token read_string(Lexer *lexer);
+int read_comment(Lexer *lexer, Token *token);
+Token read_newline(Lexer *lexer);
 
 #endif
