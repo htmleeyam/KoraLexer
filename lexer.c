@@ -91,6 +91,7 @@ int is_identifier_part(char c) {
     return isalnum((unsigned char)c) || c == '_';
 }
 
+
 // Classify reserved words.
 TokenType classify_identifier(const char *word) {
     struct KeywordEntry {
@@ -99,42 +100,47 @@ TokenType classify_identifier(const char *word) {
     };
 
     static const struct KeywordEntry reserved_words[] = {
+        // Structure
         {"class", TOKEN_KEYWORD},
         {"struct", TOKEN_KEYWORD},
         {"track", TOKEN_KEYWORD},
         {"verse", TOKEN_KEYWORD},
         {"new", TOKEN_KEYWORD},
 
+        // Declarations and functions
         {"const", TOKEN_KEYWORD},
-        {"constant", TOKEN_KEYWORD},
         {"let", TOKEN_KEYWORD},
         {"auto", TOKEN_KEYWORD},
         {"function", TOKEN_KEYWORD},
+        {"fn", TOKEN_KEYWORD},
         {"pure", TOKEN_KEYWORD},
         {"return", TOKEN_KEYWORD},
 
+        // Music settings
         {"tempo", TOKEN_KEYWORD},
         {"volume", TOKEN_KEYWORD},
         {"beat", TOKEN_KEYWORD},
         {"add", TOKEN_KEYWORD},
         {"synch", TOKEN_KEYWORD},
-        {"sync", TOKEN_KEYWORD},
-        {"synchronize", TOKEN_KEYWORD},
 
+        // Control flow
         {"if", TOKEN_KEYWORD},
         {"else", TOKEN_KEYWORD},
         {"for", TOKEN_KEYWORD},
         {"while", TOKEN_KEYWORD},
         {"break", TOKEN_KEYWORD},
 
+        // Error handling
         {"try", TOKEN_KEYWORD},
         {"catch", TOKEN_KEYWORD},
         {"throw", TOKEN_KEYWORD},
 
+        // Boolean and special values
         {"true", TOKEN_BOOLEAN},
         {"false", TOKEN_BOOLEAN},
         {"current", TOKEN_KEYWORD},
 
+        // Data types
         {"int", TOKEN_TYPE},
         {"float", TOKEN_TYPE},
         {"boolean", TOKEN_TYPE},
@@ -144,13 +150,9 @@ TokenType classify_identifier(const char *word) {
         {"event", TOKEN_TYPE},
         {"pattern", TOKEN_TYPE},
 
+        // Interval units
         {"st", TOKEN_INTERVAL_UNIT},
-        {"semitone", TOKEN_INTERVAL_UNIT},
-        {"semitones", TOKEN_INTERVAL_UNIT},
-        {"oct", TOKEN_INTERVAL_UNIT},
-        {"octave", TOKEN_INTERVAL_UNIT},
-
-        {"bt", TOKEN_DURATION_UNIT}
+        {"oct", TOKEN_INTERVAL_UNIT}
     };
 
     int count = sizeof(reserved_words) / sizeof(reserved_words[0]);
@@ -163,6 +165,7 @@ TokenType classify_identifier(const char *word) {
 
     return TOKEN_IDENTIFIER;
 }
+
 
 // Read an identifier or keyword.
 Token read_identifier(Lexer *lexer) {

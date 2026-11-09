@@ -4,9 +4,24 @@
 
 int main()
 {
-    Lexer lexer = { 
-    .source =
-        "\"Outer {format(\"Inner {name}\")}\"\n",
+    Lexer lexer = {
+        .source =
+            /* Nested string and interpolation */
+            "\"Outer {format(\"Inner {name}\")}\"\n"
+            "\"Result: {combine(\"a\", \"b\")}\"\n"
+
+            /* Keyword classification */
+            "current fn function synch\n"
+            "bt constant sync synchronize\n"
+            "oct st octave semitone semitones\n"
+
+            /* Case sensitivity */
+            "current Current\n"
+            "function FUNCTION\n"
+            "String string\n"
+            "oct OCT\n",
+
+
 
 
 
