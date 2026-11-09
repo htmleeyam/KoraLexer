@@ -470,8 +470,50 @@ int read_comment(Lexer *lexer, Token *token) {
     return 0;
 }
 
-// Read string content and interpolation boundaries.
+// Push a new lexer context onto the stack.
+static int push_context(
+    Lexer *lexer,
+    LexerContextType type,
+    int brace_depth
+)
+{
+    if (lexer->context_depth >= MAX_LEXER_CONTEXTS)
+    {
+        return 0;
+    }
 
+    LexerContext *context =
+        &lexer->context_stack[lexer->context_depth];
+
+    context->type = type;
+    context->brace_depth = brace_depth;
+
+    lexer->context_depth++;
+
+    return 1;
+}
+
+// Remove the most recent lexer context.
+static void pop_context(Lexer *lexer)
+{
+    if (lexer->context_depth > 0)
+    {
+        lexer->context_depth--;
+    }
+}
+
+// Get the current lexer context.
+static LexerContext *current_context(Lexer *lexer)
+{
+    if (lexer->context_depth == 0)
+    {
+        return NULL;
+    }
+
+    return &lexer->context_stack[lexer->context_depth - 1];
+}
+
+// Read text inside a string.
 Token read_string_content(Lexer *lexer)
 {
     int length = 0;
@@ -530,13 +572,19 @@ Token read_string_content(Lexer *lexer)
             1
         );
 
-        lexer->inside_interpolation = 1;
-        lexer->interpolation_brace_depth = 1;
+        if (!push_context(
+                lexer,
+                LEXER_CONTEXT_INTERPOLATION,
+                1
+            ))
+        {
+            token.type = TOKEN_ERROR;
+        }
 
         return token;
     }
 
-    // End of string.
+    // End of the current string.
     if (current == '"')
     {
         Token token = make_token(
@@ -545,45 +593,52 @@ Token read_string_content(Lexer *lexer)
             1
         );
 
-        lexer->inside_string = 0;
+        pop_context(lexer);
 
         return token;
     }
 
-    // Unescaped newline inside string.
+    // Unescaped newline inside a string.
     if (current == '\n' || current == '\r')
     {
         Token token = read_newline(lexer);
         token.type = TOKEN_ERROR;
 
-        lexer->inside_string = 0;
+        pop_context(lexer);
 
         return token;
     }
 
     // Unterminated string at EOF.
-    lexer->inside_string = 0;
+    pop_context(lexer);
 
     return make_token(lexer, TOKEN_ERROR, 0);
 }
 
 // Main function for retrieving the next token.
-Token get_next_token(Lexer *lexer) {
+Token get_next_token(Lexer *lexer)
+{
     Token comment_token;
 
-    // If inside string text, continue reading it.
-    if (lexer->inside_string && !lexer->inside_interpolation) {
+    // Check whether the current context is a string.
+    LexerContext *context = current_context(lexer);
+
+    if (context != NULL &&
+        context->type == LEXER_CONTEXT_STRING)
+    {
         return read_string_content(lexer);
     }
 
     // Skip whitespace and comments.
-    while (1) {
+    while (1)
+    {
         skip_whitespace(lexer);
 
         if (lexer->inside_block_comment ||
-            lexer->source[lexer->position] == '~') {
-
-            if (read_comment(lexer, &comment_token)) {
+            lexer->source[lexer->position] == '~')
+        {
+            if (read_comment(lexer, &comment_token))
+            {
                 return comment_token;
             }
 
@@ -596,34 +651,33 @@ Token get_next_token(Lexer *lexer) {
     char current = lexer->source[lexer->position];
 
     // End of source.
-    if (current == '\0') {
-        if (lexer->inside_interpolation) {
-            lexer->inside_interpolation = 0;
-            lexer->inside_string = 0;
-            lexer->interpolation_brace_depth = 0;
+    if (current == '\0')
+    {
+        if (lexer->context_depth > 0)
+        {
+            // An open string or interpolation was never closed.
+            lexer->context_depth = 0;
 
-            return make_token(lexer, TOKEN_ERROR, 0);
-        }
-
-        if (lexer->inside_string) {
-            lexer->inside_string = 0;
             return make_token(lexer, TOKEN_ERROR, 0);
         }
 
         return make_token(lexer, TOKEN_EOF, 0);
     }
 
-    if (current == '\n' || current == '\r') {
+    // Newline handling.
+    if (current == '\n' || current == '\r')
+    {
+        context = current_context(lexer);
 
-        // A newline is invalid while an interpolated string is still open.
-        if (lexer->inside_string && lexer->inside_interpolation) {
+        // A newline inside an interpolation is an error.
+        if (context != NULL &&
+            context->type == LEXER_CONTEXT_INTERPOLATION)
+        {
             Token token = read_newline(lexer);
             token.type = TOKEN_ERROR;
 
-            // Reset string state so the lexer can recover on the next line.
-            lexer->inside_string = 0;
-            lexer->inside_interpolation = 0;
-            lexer->interpolation_brace_depth = 0;
+            // Reset unfinished string/interpolation contexts.
+            lexer->context_depth = 0;
 
             return token;
         }
@@ -631,23 +685,41 @@ Token get_next_token(Lexer *lexer) {
         return read_newline(lexer);
     }
 
-    // Start of a string.
-    if (current == '"') {
-        lexer->inside_string = 1;
-        return make_token(lexer, TOKEN_STRING_START, 1);
+    // Start of a new string.
+    if (current == '"')
+    {
+        Token token = make_token(
+            lexer,
+            TOKEN_STRING_START,
+            1
+        );
+
+        if (!push_context(
+                lexer,
+                LEXER_CONTEXT_STRING,
+                0
+            ))
+        {
+            token.type = TOKEN_ERROR;
+        }
+
+        return token;
     }
 
     // Pitch literals.
-    if (is_pitch_literal(lexer)) {
+    if (is_pitch_literal(lexer))
+    {
         int start = lexer->position;
         int length = 1;
 
         if (lexer->source[start + length] == '#' ||
-            lexer->source[start + length] == 'b') {
+            lexer->source[start + length] == 'b')
+        {
             length++;
         }
 
-        if (lexer->source[start + length] == '-') {
+        if (lexer->source[start + length] == '-')
+        {
             length++;
         }
 
@@ -659,11 +731,13 @@ Token get_next_token(Lexer *lexer) {
     // Incomplete pitch literals.
     if (current >= 'A' && current <= 'G' &&
         (lexer->source[lexer->position + 1] == '#' ||
-         lexer->source[lexer->position + 1] == 'b')) {
-
+         lexer->source[lexer->position + 1] == 'b'))
+    {
         int length = 2;
 
-        while (isdigit((unsigned char)lexer->source[lexer->position + length])) {
+        while (isdigit((unsigned char)
+                lexer->source[lexer->position + length]))
+        {
             length++;
         }
 
@@ -671,52 +745,71 @@ Token get_next_token(Lexer *lexer) {
     }
 
     // Identifiers and keywords.
-    if (is_identifier_start(current)) {
+    if (is_identifier_start(current))
+    {
         return read_identifier(lexer);
     }
 
     // Numbers.
-    if (isdigit((unsigned char)current)) {
+    if (isdigit((unsigned char)current))
+    {
         return read_number(lexer);
     }
 
     // Malformed leading decimal point.
     if (current == '.' &&
-        isdigit((unsigned char)lexer->source[lexer->position + 1])) {
-
+        isdigit((unsigned char)lexer->source[lexer->position + 1]))
+    {
         int length = 1;
 
         while (isdigit((unsigned char)lexer->source[lexer->position + length]) ||
-               lexer->source[lexer->position + length] == '.') {
+               lexer->source[lexer->position + length] == '.')
+        {
             length++;
         }
 
-        while (is_identifier_part(lexer->source[lexer->position + length])) {
+        while (is_identifier_part(lexer->source[lexer->position + length]))
+        {
             length++;
         }
 
         return make_token(lexer, TOKEN_ERROR, length);
     }
 
-    // End of interpolation.
-    if (current == '}' && lexer->inside_interpolation) {
-        lexer->interpolation_brace_depth--;
+    // Get the current context again.
+    context = current_context(lexer);
 
-        if (lexer->interpolation_brace_depth == 0) {
+    // Handle the end of an interpolation.
+    if (current == '}' &&
+        context != NULL &&
+        context->type == LEXER_CONTEXT_INTERPOLATION)
+    {
+        if (context->brace_depth == 1)
+        {
             Token token = make_token(
                 lexer,
                 TOKEN_INTERPOLATION_END,
                 1
             );
 
-            lexer->inside_interpolation = 0;
+            // Return to the string context below this interpolation.
+            pop_context(lexer);
+
             return token;
         }
+
+        // This is a regular closing brace inside the expression.
+        context->brace_depth--;
+
+        return read_operator_or_delimiter(lexer);
     }
 
-    // Track nested braces inside interpolation expressions.
-    if (lexer->inside_interpolation && current == '{') {
-        lexer->interpolation_brace_depth++;
+    // Track nested braces inside the current interpolation.
+    if (current == '{' &&
+        context != NULL &&
+        context->type == LEXER_CONTEXT_INTERPOLATION)
+    {
+        context->brace_depth++;
     }
 
     return read_operator_or_delimiter(lexer);

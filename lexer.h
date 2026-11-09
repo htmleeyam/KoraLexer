@@ -1,5 +1,8 @@
+
 #ifndef LEXER_H
 #define LEXER_H
+
+#define MAX_LEXER_CONTEXTS 64
 
 typedef enum {
     TOKEN_KEYWORD,
@@ -11,7 +14,7 @@ typedef enum {
     TOKEN_PITCH,
     TOKEN_INTERVAL_UNIT,
     TOKEN_DURATION_UNIT,
-    
+
     // String interpolation
     TOKEN_STRING_START,
     TOKEN_STRING_TEXT,
@@ -82,6 +85,18 @@ typedef struct {
     int column;
 } Token;
 
+// Lexer context types
+typedef enum {
+    LEXER_CONTEXT_STRING,
+    LEXER_CONTEXT_INTERPOLATION
+} LexerContextType;
+
+// Each context stores its own state.
+typedef struct {
+    LexerContextType type;
+    int brace_depth;
+} LexerContext;
+
 typedef struct {
     const char *source;
     int position;
@@ -93,10 +108,9 @@ typedef struct {
     int block_comment_start_line;
     int block_comment_start_column;
 
-    // String interpolation tracking
-    int inside_string;
-    int inside_interpolation;
-    int interpolation_brace_depth;
+    // Nested string/interpolation tracking
+    LexerContext context_stack[MAX_LEXER_CONTEXTS];
+    int context_depth;
 } Lexer;
 
 // Function declarations

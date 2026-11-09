@@ -1,17 +1,13 @@
+
 #include <stdio.h>
 #include "lexer.h"
 
 int main()
 {
-    Lexer lexer = {
+    Lexer lexer = { 
     .source =
-        "\"Hello {name}!\"\n"
-        "\"Score: {100 + 20}\"\n"
-        "\"Result: {calculate({value})}\"\n"
-        "\"Literal \\{ brace\"\n"
-        "\"Broken: {name\n"
-        "let recovered = 123\n"
-        "\"Back to normal {C4}\"\n",
+        "\"Outer {format(\"Inner {name}\")}\"\n",
+
 
 
         .position = 0,
@@ -22,9 +18,7 @@ int main()
         .block_comment_start_line = 0,
         .block_comment_start_column = 0,
 
-        .inside_string = 0,
-        .inside_interpolation = 0,
-        .interpolation_brace_depth = 0
+        .context_depth = 0
     };
 
     Token token;
