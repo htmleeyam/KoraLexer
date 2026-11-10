@@ -372,13 +372,32 @@ int is_pitch_literal(Lexer *lexer) {
     return 1;
 }
 
+
 // Read a newline, treating CRLF as one logical newline.
+// A standalone CR is an invalid character.
 Token read_newline(Lexer *lexer) {
     Token token = {0};
 
-    token.type = TOKEN_NEWLINE;
     token.line = lexer->line;
     token.column = lexer->column;
+
+    // Reject a CR that is not followed by LF.
+    if (lexer->source[lexer->position] == '\r' &&
+        lexer->source[lexer->position + 1] != '\n') {
+
+        token.type = TOKEN_ERROR;
+        token.lexeme[0] = '\r';
+        token.lexeme[1] = '\0';
+
+        // Consume the invalid character without advancing the line.
+        lexer->position++;
+        lexer->column++;
+
+        return token;
+    }
+
+    // Valid LF or CRLF newline.
+    token.type = TOKEN_NEWLINE;
 
     int length = 1;
 
@@ -399,6 +418,7 @@ Token read_newline(Lexer *lexer) {
 
     return token;
 }
+
 
 // Read and skip Kora comments.
 int read_comment(Lexer *lexer, Token *token) {
@@ -517,6 +537,7 @@ static LexerContext *current_context(Lexer *lexer)
 }
 
 // Read text inside a string.
+
 Token read_string_content(Lexer *lexer)
 {
     int length = 0;
@@ -538,6 +559,7 @@ Token read_string_content(Lexer *lexer)
             char escaped = lexer->source[lexer->position + length + 1];
 
             if (escaped == '\\' || escaped == '"' ||
+                escaped == '\'' ||
                 escaped == 'n' || escaped == 't' ||
                 escaped == 'r' || escaped == '{')
             {
@@ -617,6 +639,7 @@ Token read_string_content(Lexer *lexer)
 
     return make_token(lexer, TOKEN_ERROR, 0);
 }
+
 
 // Main function for retrieving the next token.
 Token get_next_token(Lexer *lexer)
