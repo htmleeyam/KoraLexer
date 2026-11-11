@@ -1,4 +1,4 @@
-# Kora Lexical Analyzer
+# Kora Lexical Analyzer 
 
 A hand-coded lexical analyzer (lexer) implementation for **Kora**, a domain-specific programming language designed primarily for musicians and composers to create music through code.
 
