@@ -1,0 +1,14 @@
+~~ KORA TEST 09: INTENTIONALLY INVALID INPUTS
+~~ EXPECTED RESULT: Two lexical errors.
+
+fn main() {
+    let valid_before_error = 123
+
+    ~~ This @ character should produce an error.
+    let invalid_character = @
+
+    ~~ This string is intentionally unterminated.
+    let unfinished_string = "This string never closes
+
+    return
+}

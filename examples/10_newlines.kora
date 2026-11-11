@@ -1,0 +1,11 @@
+~~ KORA TEST 10: NEWLINE HANDLING
+
+let first = 10
+
+
+let second = 20
+
+fn main() {
+    let message = "Hello,\nKora!"
+    return
+}

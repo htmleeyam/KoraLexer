@@ -1,0 +1,16 @@
+~~ KORA TEST 08: COMBINED PROGRAM
+
+fn main() {
+    int score = 100
+    float average = 95.5
+    boolean passed = true
+
+    "Hello, Kora!\n"
+    "Your score is {score}"
+    "Result: {format("Excellent")}"
+
+    if (passed) {
+        score += 1
+        return
+    }
+}

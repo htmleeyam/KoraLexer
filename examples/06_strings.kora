@@ -1,0 +1,9 @@
+~~ KORA TEST 06: STRINGS AND ESCAPE SEQUENCES
+
+let greeting = "Hello, Kora!"
+let newline_escape = "First line\nSecond line"
+let tab_escape = "Column1\tColumn2"
+let carriage_return = "A\rB"
+let quote_escape = "She said: \"Hello!\""
+let slash_escape = "C:\\Kora\\Files"
+let brace_escape = "This is a literal \{ brace"
