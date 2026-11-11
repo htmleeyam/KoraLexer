@@ -357,7 +357,8 @@ static void test_numeric_literals(void) {
         "42",
         "12.3.4",
         "123abc",
-        "12.",
+        "12",
+        ".",
         ".5"
     };
 
@@ -370,7 +371,8 @@ static void test_numeric_literals(void) {
         TOKEN_INTEGER,
         TOKEN_ERROR,
         TOKEN_ERROR,
-        TOKEN_ERROR,
+        TOKEN_INTEGER,
+        TOKEN_DOT,
         TOKEN_ERROR
     };
 

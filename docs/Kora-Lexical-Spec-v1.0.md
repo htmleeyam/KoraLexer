@@ -251,7 +251,13 @@ Examples:
 10.0
 ```
 
-A decimal point is part of a float only when it is followed by at least one digit. Otherwise, `.` is the `DOT` punctuation token. Exponent notation is not specified in the Kora material and is not included in this working specification.
+A decimal point is part of a float only when it is followed by at least one digit. Otherwise, `.` is the `DOT` punctuation token.
+
+A number ending with a decimal point, such as `12.`, is therefore tokenized as an `INTEGER_LITERAL` followed by a `DOT`.
+
+A number beginning with a decimal point followed by digits, such as `.5`, is considered a malformed numeric literal and produces an `INVALID_NUMBER` error. Leading-dot float notation is not supported.
+
+Exponent notation is not specified in the Kora material and is not included in this working specification.
 
 ### 7.3 Boolean literals
 

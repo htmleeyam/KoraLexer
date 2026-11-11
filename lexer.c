@@ -363,29 +363,28 @@ Token read_number(Lexer *lexer) {
     int length = 0;
     TokenType type = TOKEN_INTEGER;
 
+    // Read the digits before the decimal point.
     while (isdigit((unsigned char)lexer->source[lexer->position + length])) {
         length++;
     }
 
-    if (lexer->source[lexer->position + length] == '.') {
-        if (!isdigit((unsigned char)lexer->source[lexer->position + length + 1])) {
-            length++;
-            return make_error_token(
-                lexer,
-                length,
-                LEX_ERROR_INVALID_NUMBER
-            );
-        }
+    // A decimal point belongs to a float only when
+    // it is followed by at least one digit.
+    if (lexer->source[lexer->position + length] == '.' &&
+        isdigit((unsigned char)lexer->source[lexer->position + length + 1])) {
 
         type = TOKEN_FLOAT;
         length++;
 
+        // Read the digits after the decimal point.
         while (isdigit((unsigned char)lexer->source[lexer->position + length])) {
             length++;
         }
 
+        // Detect multiple decimal points followed by digits.
         if (lexer->source[lexer->position + length] == '.' &&
             isdigit((unsigned char)lexer->source[lexer->position + length + 1])) {
+
             while (isdigit((unsigned char)lexer->source[lexer->position + length]) ||
                    lexer->source[lexer->position + length] == '.') {
                 length++;
@@ -399,6 +398,7 @@ Token read_number(Lexer *lexer) {
         }
     }
 
+    // Reject numbers immediately followed by identifier characters.
     if (is_identifier_part(lexer->source[lexer->position + length])) {
         while (is_identifier_part(lexer->source[lexer->position + length])) {
             length++;
