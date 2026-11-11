@@ -160,7 +160,8 @@ int is_identifier_part(char c) {
 }
 
 // Classify reserved words.
-TokenType classify_identifier(const char *word) {
+// Classify reserved words using the lexeme and its actual length.
+TokenType classify_identifier(const char *word, int length) {
     struct KeywordEntry {
         const char *word;
         TokenType type;
@@ -217,7 +218,10 @@ TokenType classify_identifier(const char *word) {
     int count = sizeof(reserved_words) / sizeof(reserved_words[0]);
 
     for (int i = 0; i < count; i++) {
-        if (strcmp(word, reserved_words[i].word) == 0) {
+        size_t keyword_length = strlen(reserved_words[i].word);
+
+        if ((size_t)length == keyword_length &&
+            memcmp(word, reserved_words[i].word, keyword_length) == 0) {
             return reserved_words[i].type;
         }
     }
@@ -239,16 +243,11 @@ Token read_identifier(Lexer *lexer) {
 
     int length = lexer->position - start;
 
-    if (length >= 256) {
-        length = 255;
-    }
-
-    strncpy(token.lexeme, lexer->source + start, length);
-    token.lexeme[length] = '\0';
-
+    token.lexeme = lexer->source + start;
+    token.length = length;
     token.line = lexer->line;
     token.column = start_column;
-    token.type = classify_identifier(token.lexeme);
+    token.type = classify_identifier(token.lexeme, token.length);
 
     return token;
 }
@@ -260,18 +259,10 @@ Token make_token(Lexer *lexer, TokenType type, int length) {
     int start = lexer->position;
 
     token.type = type;
+    token.lexeme = lexer->source + start;
+    token.length = length;
     token.line = lexer->line;
     token.column = lexer->column;
-
-    if (length >= 256) {
-        length = 255;
-    }
-
-    for (int i = 0; i < length; i++) {
-        token.lexeme[i] = lexer->source[start + i];
-    }
-
-    token.lexeme[length] = '\0';
 
     lexer->position += length;
     lexer->column += length;
@@ -457,54 +448,47 @@ int is_pitch_literal(Lexer *lexer) {
     return 1;
 }
 
+
 // Read a newline, treating CRLF as one logical newline.
 Token read_newline(Lexer *lexer) {
-    Token token = {0};
+    char current = lexer->source[lexer->position];
 
-    token.line = lexer->line;
-    token.column = lexer->column;
-
-    if (lexer->source[lexer->position] == '\r' &&
+    // Reject standalone carriage returns.
+    if (current == '\r' &&
         lexer->source[lexer->position + 1] != '\n') {
 
-        token.type = TOKEN_ERROR;
-        token.error_code = LEX_ERROR_INVALID_NEWLINE;
-        token.lexeme[0] = '\r';
-        token.lexeme[1] = '\0';
-
-        lexer->position++;
-        lexer->column++;
-
-        return token;
+        return make_error_token(
+            lexer,
+            1,
+            LEX_ERROR_INVALID_NEWLINE
+        );
     }
 
-    token.type = TOKEN_NEWLINE;
+    // Determine the physical newline length.
+    int length = (current == '\r') ? 2 : 1;
 
-    int length = 1;
+    // Create a source-slice token.
+    Token token = make_token(
+        lexer,
+        TOKEN_NEWLINE,
+        length
+    );
 
-    if (lexer->source[lexer->position] == '\r' &&
-        lexer->source[lexer->position + 1] == '\n') {
-        length = 2;
-    }
-
-    for (int i = 0; i < length; i++) {
-        token.lexeme[i] = lexer->source[lexer->position + i];
-    }
-
-    token.lexeme[length] = '\0';
-
-    lexer->position += length;
+    // Update logical line tracking.
     lexer->line++;
     lexer->column = 1;
 
     return token;
 }
 
+
+
 // Read and skip Kora comments.
 int read_comment(Lexer *lexer, Token *token) {
     const char *source = lexer->source;
 
     if (!lexer->inside_block_comment) {
+
         // Single-line comment.
         if (source[lexer->position] == '~' &&
             source[lexer->position + 1] == '~') {
@@ -515,6 +499,7 @@ int read_comment(Lexer *lexer, Token *token) {
             while (source[lexer->position] != '\0' &&
                    source[lexer->position] != '\n' &&
                    source[lexer->position] != '\r') {
+
                 lexer->position++;
                 lexer->column++;
             }
@@ -527,47 +512,63 @@ int read_comment(Lexer *lexer, Token *token) {
             source[lexer->position + 1] == '*') {
 
             lexer->inside_block_comment = 1;
+
+            // Remember the opening position of the comment.
             lexer->block_comment_start_line = lexer->line;
             lexer->block_comment_start_column = lexer->column;
+            lexer->block_comment_start_position = lexer->position;
 
             lexer->position += 2;
             lexer->column += 2;
+
         } else {
             *token = make_error_token(
                 lexer,
                 1,
                 LEX_ERROR_UNEXPECTED_CHARACTER
             );
+
             return 1;
         }
     }
 
+    // Continue scanning the block comment.
     while (lexer->inside_block_comment) {
         char current = source[lexer->position];
 
+        // Check for end of source.
         if (current == '\0') {
             *token = (Token){0};
 
             token->type = TOKEN_ERROR;
+            token->lexeme =
+                source + lexer->block_comment_start_position;
+            token->length = 2;
+
             token->line = lexer->block_comment_start_line;
             token->column = lexer->block_comment_start_column;
 
-            strcpy(token->lexeme, "~*");
-            token->error_code = LEX_ERROR_UNTERMINATED_BLOCK_COMMENT;
+            token->error_code =
+                LEX_ERROR_UNTERMINATED_BLOCK_COMMENT;
 
             lexer->inside_block_comment = 0;
+
             return 1;
         }
 
+        // Preserve physical newlines inside block comments.
         if (current == '\n' || current == '\r') {
             *token = read_newline(lexer);
             return 1;
         }
 
+        // Detect the closing block-comment delimiter.
         if (current == '*' && source[lexer->position + 1] == '~') {
             lexer->position += 2;
             lexer->column += 2;
+
             lexer->inside_block_comment = 0;
+
             return 0;
         }
 
@@ -577,6 +578,7 @@ int read_comment(Lexer *lexer, Token *token) {
 
     return 0;
 }
+
 
 // Push a new lexer context onto the stack.
 static int push_context(

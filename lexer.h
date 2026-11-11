@@ -85,7 +85,8 @@ typedef enum {
 
 typedef struct {
     TokenType type;
-    char lexeme[256];
+    const char *lexeme;
+    int length;
     int line;
     int column;
     LexicalErrorCode error_code;
@@ -113,6 +114,7 @@ typedef struct {
     int inside_block_comment;
     int block_comment_start_line;
     int block_comment_start_column;
+    int block_comment_start_position;
 
     // Nested string/interpolation tracking.
     LexerContext context_stack[MAX_LEXER_CONTEXTS];
@@ -131,7 +133,7 @@ int is_identifier_start(char c);
 int is_identifier_part(char c);
 int is_pitch_literal(Lexer *lexer);
 
-TokenType classify_identifier(const char *word);
+TokenType classify_identifier(const char *word, int length);
 
 Token read_identifier(Lexer *lexer);
 Token make_token(Lexer *lexer, TokenType type, int length);
