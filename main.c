@@ -1,16 +1,46 @@
+
 #include <stdio.h>
 #include "lexer.h"
 
 int main()
 {
     Lexer lexer = {
-        "var123abc\n"
-        "_note456\n"
-        "123abc\n"
-        "456xyz\n"
-        "12.34.56\n"
-        "78.90",
-        0, 1, 1, 0, 0, 0
+    .source =
+        /* Nested string and interpolation */
+        "\"Outer {format(\"Inner {name}\")}\"\n"
+        "\"Result: {combine(\"a\", \"b\")}\"\n"
+
+        /* Keyword classification */
+        "current fn function synch\n"
+        "bt constant sync synchronize\n"
+        "oct st octave semitone semitones\n"
+
+        /* Case sensitivity */
+        "current Current\n"
+        "function FUNCTION\n"
+        "String string\n"
+        "oct OCT\n"
+
+        /* Seven supported string escapes */
+        "\"Escapes: \\n \\t \\r \\\\ \\\" \\{ \\'\"\n"
+
+        /* Unsupported escape */
+        "\"Invalid escape: \\q\"\n",
+
+
+
+
+
+
+        .position = 0,
+        .line = 1,
+        .column = 1,
+
+        .inside_block_comment = 0,
+        .block_comment_start_line = 0,
+        .block_comment_start_column = 0,
+
+        .context_depth = 0
     };
 
     Token token;
