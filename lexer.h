@@ -13,7 +13,6 @@ typedef enum {
     TOKEN_BOOLEAN,
     TOKEN_PITCH,
     TOKEN_INTERVAL_UNIT,
-    TOKEN_DURATION_UNIT,
 
     // String interpolation
     TOKEN_STRING_START,

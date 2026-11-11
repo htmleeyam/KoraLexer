@@ -14,7 +14,6 @@ const char* token_type_name(TokenType type) {
         case TOKEN_BOOLEAN: return "BOOLEAN";
         case TOKEN_PITCH: return "PITCH";
         case TOKEN_INTERVAL_UNIT: return "INTERVAL_UNIT";
-        case TOKEN_DURATION_UNIT: return "DURATION_UNIT";
 
         case TOKEN_STRING_START: return "STRING_START";
         case TOKEN_STRING_TEXT: return "STRING_TEXT";
