@@ -625,23 +625,87 @@ The scanner's string/interpolation context stack must preserve the correct paren
 
 ---
 
-## 13. Lexical errors to handle
 
-At minimum, the scanner should report:
+## 13. Lexical Errors and Reporting
 
-- Unterminated string literal.
-- Physical newline inside a single-line string.
-- Unsupported string escape sequence.
-- Unterminated interpolation expression.
-- Unterminated multi-line comment.
-- Unknown or unsupported character.
-- Standalone carriage return.
-- Malformed numeric or pitch sequence when it cannot be tokenized under the agreed rules.
-- Lexer context-stack overflow, if the implementation uses a fixed maximum context depth.
+The scanner must detect and report invalid lexical elements instead of silently accepting them.
 
-Every error should include the line and column. The scanner should recover when possible by consuming at least one invalid character and continuing, rather than crashing or entering an infinite loop.
+At minimum, the scanner should handle the following error categories:
 
-Do not report parser or semantic errors as lexical errors. For example, using `break` outside a loop is not a lexical error; `break` is a valid reserved word token.
+| Error category | Description | Example |
+|---|---|---|
+| Unexpected character | A character that does not belong to a valid Kora token. | `@` |
+| Invalid numeric literal | A malformed integer or floating-point sequence. | `12.3.4` |
+| Invalid pitch literal | A pitch-like sequence that does not follow the pitch notation rules. | `C#` |
+| Invalid escape sequence | An unsupported escape inside a string. | `\q` |
+| Unterminated string | A string that reaches a physical line break or end of source without a closing quotation mark. | `"Hello` |
+| Unterminated interpolation | An interpolation expression without its matching closing brace. | `"Hello {name` |
+| Unterminated block comment | A multi-line comment without its closing marker. | `~* comment` |
+| Invalid newline | A standalone carriage return or unsupported line-ending sequence. | Standalone `\r` |
+| Context-stack overflow | The lexer exceeds its supported nested context depth. | Excessive nested contexts |
+
+### 13.1 Error Information
+
+Each reported lexical error should provide the following information when available:
+
+- **Description:** A readable explanation of the detected problem.
+- **Lexeme:** The invalid character or source sequence associated with the error.
+- **Location:** The source line and column where the lexer detected the error.
+- **Suggestion:** A possible correction based on the error category.
+
+Example:
+
+```text
+LEXICAL ERROR
+Description : Unexpected character.
+Lexeme      : '@'
+Location    : Line 4, Column 21
+Suggestion  : Remove the character or replace it with a valid Kora token.
+```
+
+### 13.2 Suggested Corrections
+
+Suggestions should be specific to the detected error whenever possible.
+
+| Error | Example suggestion |
+|---|---|
+| Unexpected character | Remove the character or replace it with a valid Kora token. |
+| Invalid numeric literal | Check the numeric format. Use a valid integer or decimal. |
+| Invalid pitch literal | Check the pitch notation and provide a valid note and octave. |
+| Invalid escape sequence | Use a supported escape sequence such as `\n`, `\t`, or `\\`. |
+| Unterminated string | Add a closing double quotation mark (`"`). |
+| Unterminated interpolation | Close the interpolation expression using `}`. |
+| Unterminated block comment | Close the block comment using `*~`. |
+
+Suggestions are informational guidance. They do not guarantee that the resulting source code is syntactically or semantically valid. The lexer does not automatically repair source code.
+
+### 13.3 Error Recovery
+
+The lexer should attempt to continue scanning after recoverable lexical errors.
+
+- Consume the offending character or malformed sequence as appropriate.
+- Avoid repeatedly reporting the same unconsumed input.
+- Preserve line and column tracking.
+- Continue recognizing subsequent valid tokens whenever recovery is possible.
+- Report multiple lexical errors during one analysis when possible.
+
+Some errors, such as an unterminated block comment at the end of the source file, may prevent further token recognition because the remaining input belongs to the incomplete construct.
+
+### 13.4 Scope of Lexical Error Handling
+
+Lexical error handling is limited to invalid characters, malformed lexemes, and incomplete lexical constructs.
+
+The lexer does not detect:
+
+- Missing or misplaced grammar elements.
+- Invalid statement structures.
+- Incorrect operator precedence.
+- Undeclared variables.
+- Type mismatches.
+- Invalid program entry points.
+- Other semantic violations.
+
+These belong to the parser and subsequent compiler stages.
 
 ---
 
@@ -693,6 +757,32 @@ Test malformed inputs:
 - a malformed pitch-like sequence;
 - a standalone CR.
 
+
+### 14.1 Lexical Error Reporting Tests
+
+The following inputs test whether the scanner detects errors and provides useful diagnostic information.
+
+| Input | Expected error |
+|---|---|
+| `int score = 100 @` | Unexpected character |
+| `float price = 12.3.4` | Invalid numeric literal |
+| `pitch note = C#` | Invalid pitch literal |
+| `"Hello, Kora!\q"` | Invalid escape sequence |
+| `"This string is never closed` | Unterminated string |
+| `"Hello {name` | Unterminated interpolation |
+| `~* This block comment is never closed` | Unterminated block comment |
+
+For each error, verify that the output includes:
+
+1. An appropriate error description.
+2. The associated invalid lexeme or source sequence.
+3. The source line and column.
+4. A relevant correction suggestion.
+
+Also verify that the lexer continues scanning after recoverable errors and reports multiple errors in a single source file.
+
+Additional tests should cover standalone carriage returns, excessive nested contexts, and multiple errors on the same line.
+
 ---
 
 ## 15. Remaining implementation considerations
@@ -733,5 +823,10 @@ Step 1 is complete when the team agrees that this document accurately records:
 - the implemented string/interpolation token behavior, including nested contexts;
 - the token categories and lexical error expectations;
 - the remaining newline-token consideration for multi-line comments.
+- lexical error categories and their corresponding descriptions;
+- source locations and associated invalid lexemes;
+- rule-based correction suggestions;
+- error recovery behavior and continued scanning after recoverable errors;
+- the distinction between lexical errors and syntax or semantic errors.
 
 After the specification is agreed, the team can continue refining the `TokenType` inventory, token data structure, scanner implementation, and test suite. Implementation changes should be tested against this document and updated here when an explicit language decision changes.
