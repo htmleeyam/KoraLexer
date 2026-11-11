@@ -736,6 +736,33 @@ Token get_next_token(Lexer *lexer) {
             lexer->source[lexer->position] == '~') {
 
             if (read_comment(lexer, &comment_token)) {
+
+                // Check whether the block comment produced a physical line break.
+                LexerContext *comment_context = current_context(lexer);
+
+                int is_comment_line_break =
+                    comment_token.type == TOKEN_NEWLINE ||
+                    (comment_token.type == TOKEN_ERROR &&
+                    comment_token.error_code == LEX_ERROR_INVALID_NEWLINE);
+
+                // A physical line break inside an active interpolation
+                // must terminate the interpolation context.
+                if (is_comment_line_break &&
+                    comment_context != NULL &&
+                    comment_context->type == LEXER_CONTEXT_INTERPOLATION) {
+
+                    // LF and CRLF become unterminated-interpolation errors.
+                    // Preserve INVALID_NEWLINE for standalone CR.
+                    if (comment_token.type == TOKEN_NEWLINE) {
+                        comment_token.type = TOKEN_ERROR;
+                        comment_token.error_code =
+                            LEX_ERROR_UNTERMINATED_INTERPOLATION;
+                    }
+
+                    // End all active string/interpolation contexts.
+                    lexer->context_depth = 0;
+                }
+
                 return comment_token;
             }
 

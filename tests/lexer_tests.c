@@ -1754,6 +1754,122 @@ void test_empty_and_whitespace_input(void) {
     );
 }
 
+void test_block_comment_newline_inside_interpolation(void) {
+    printf("\n--- Test 24: Block Comment Newlines Inside Interpolation ---\n");
+
+    Token token;
+
+    // Case 1: LF inside a block comment within interpolation.
+    const char *lf_source =
+        "\"x {value ~* comment\ncontinued *~";
+
+    Lexer lf_lexer = create_lexer(lf_source);
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_STRING_START, "\""),
+          "Recognizes string start before LF block comment");
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_STRING_TEXT, "x "),
+          "Preserves string text before interpolation");
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_INTERPOLATION_START, "{"),
+          "Recognizes interpolation start before LF block comment");
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_IDENTIFIER, "value"),
+          "Recognizes identifier before LF block comment");
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\n"),
+          "Reports LF inside interpolation comment as an error");
+
+    check(token.error_code == LEX_ERROR_UNTERMINATED_INTERPOLATION,
+          "Uses UNTERMINATED_INTERPOLATION error category for LF");
+
+    check(token.line == 1 && token.column == 21,
+          "Reports correct location of LF inside interpolation comment");
+
+    token = get_next_token(&lf_lexer);
+    check(token.type == TOKEN_EOF,
+          "Skips remaining LF block comment and reaches EOF");
+
+
+    // Case 2: CRLF inside a block comment within interpolation.
+    const char *crlf_source =
+        "\"x {value ~* comment\r\ncontinued *~";
+
+    Lexer crlf_lexer = create_lexer(crlf_source);
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_STRING_START, "\""),
+          "Recognizes string start before CRLF block comment");
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_STRING_TEXT, "x "),
+          "Preserves string text before CRLF interpolation");
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_INTERPOLATION_START, "{"),
+          "Recognizes interpolation start before CRLF block comment");
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_IDENTIFIER, "value"),
+          "Recognizes identifier before CRLF block comment");
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\r\n"),
+          "Reports CRLF inside interpolation comment as an error");
+
+    check(token.error_code == LEX_ERROR_UNTERMINATED_INTERPOLATION,
+          "Uses UNTERMINATED_INTERPOLATION error category for CRLF");
+
+    check(token.line == 1 && token.column == 21,
+          "Reports correct location of CRLF inside interpolation comment");
+
+    token = get_next_token(&crlf_lexer);
+    check(token.type == TOKEN_EOF,
+          "Skips remaining CRLF block comment and reaches EOF");
+
+
+    // Case 3: Standalone CR inside a block comment within interpolation.
+    const char *cr_source =
+        "\"x {value ~* comment\rcontinued *~";
+
+    Lexer cr_lexer = create_lexer(cr_source);
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_STRING_START, "\""),
+          "Recognizes string start before standalone CR comment");
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_STRING_TEXT, "x "),
+          "Preserves string text before standalone CR interpolation");
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_INTERPOLATION_START, "{"),
+          "Recognizes interpolation start before standalone CR comment");
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_IDENTIFIER, "value"),
+          "Recognizes identifier before standalone CR comment");
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\r"),
+          "Detects standalone CR inside interpolation comment");
+
+    check(token.error_code == LEX_ERROR_INVALID_NEWLINE,
+          "Preserves INVALID_NEWLINE classification for standalone CR");
+
+    check(token.line == 1 && token.column == 21,
+          "Reports correct location of standalone CR in interpolation comment");
+
+    token = get_next_token(&cr_lexer);
+    check(token.type == TOKEN_EOF,
+          "Ends interpolation and skips remaining comment after standalone CR");
+}
+
 int main(void) {
     printf("========================================\n");
     printf("       KORA LEXER AUTOMATED TESTS       \n");
@@ -1782,6 +1898,7 @@ int main(void) {
     test_accidental_pitch_boundaries();
     test_comment_newline_edge_cases();
     test_empty_and_whitespace_input();
+    test_block_comment_newline_inside_interpolation();
 
     printf("\n========================================\n");
     printf("TEST SUMMARY\n");

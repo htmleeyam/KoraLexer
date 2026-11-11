@@ -486,14 +486,25 @@ Start when the scanner sees `~~`. Consume characters until the end of the physic
 
 **Newline handling inside multi-line comments:**
 
-Physical line breaks inside a multi-line comment must still be recognized and preserved as `NEWLINE` tokens.
+Physical line breaks inside a multi-line comment are processed according to the current lexer context.
+
+When no interpolation context is active:
 
 - LF (`\n`) produces one `NEWLINE` token.
 - CRLF (`\r\n`) produces one `NEWLINE` token, not two.
 - A standalone CR produces a lexical error.
-- Comment text itself must not produce ordinary tokens.
 
-This ensures that discarding comment text does not silently remove statement boundaries. Line and column tracking must remain correct throughout the comment.
+When a physical line break occurs while an interpolation expression is active, including while the scanner is processing a block comment:
+
+- LF produces an `UNTERMINATED_INTERPOLATION` error.
+- CRLF produces one `UNTERMINATED_INTERPOLATION` error.
+- A standalone CR produces an `INVALID_NEWLINE` error while also terminating the active interpolation context.
+
+After reporting the error, the lexer continues processing the remainder of the block comment. Comment text must not produce ordinary tokens.
+
+This ensures that block-comment handling respects the single-line restriction on string interpolation while preserving normal comment behavior outside interpolation.
+
+Line and column tracking must remain correct throughout the comment.
 
 
 ---
