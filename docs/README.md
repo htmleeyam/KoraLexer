@@ -1,6 +1,6 @@
 # Kora Lexer Documentation
 
-This folder contains the documentation for the Kora Lexical Analyzer. These documents define the intended lexical rules of the Kora programming language and evaluate how those rules are implemented in the lexer.
+This folder contains the documentation for the Kora Lexical Analyzer. These documents define the intended lexical rules of the Kora programming language, describe the lexer architecture, and evaluate how those rules are implemented.
 
 ## Documents
 
@@ -40,13 +40,31 @@ It records:
 
 **Purpose:** Evaluates how closely the implementation follows the lexical specification.
 
+### 3. Lexer Design
+
+**File:** `lexer-design.md`
+
+This document describes the architecture and organization of the Kora Lexical Analyzer.
+
+It covers:
+
+- Overall lexer architecture
+- Source tracking and token representation
+- Main scanning functions
+- String and interpolation context management
+- Lexical error handling
+- Token output and implementation details
+
+**Purpose:** Explains how the lexer is structured and how its scanning components work together.
+
 ## Relationship to the Source Code
 
 | File | Responsibility |
 |---|---|
 | `lexer.h` | Defines token types, token structures, error codes, and function declarations. |
 | `lexer.c` | Implements character scanning, token recognition, and lexical error handling. |
-| `main.c` | Runs the lexer and displays tokens, lexical errors, and the analysis summary. |
+| `main.c` | Loads Kora source files, runs the lexer, and displays tokens, lexical errors, and the analysis summary. |
+| `tests/lexer_tests.c` | Contains automated regression tests for token recognition, lexical boundaries, and error handling. |
 
 ## Lexical Error Handling
 
@@ -67,12 +85,15 @@ Suggestions are informational. Automatic source-code correction is not part of t
 
 1. Read the **Kora Lexical Specification** to understand the language's lexical rules.
 2. Examine the **Kora Lexical Audit** to review implemented features and verified test results.
-3. Review the source code to understand how the lexer processes input.
-4. Run the example files to test token recognition and lexical error reporting.
-5. Update the specification and audit whenever an agreed language rule or implementation behavior changes.
+3. Read **Lexer Design** to understand the architecture and implementation approach.
+4. Review the source code to understand how the lexer processes input.
+5. Run the example files and automated tests to verify token recognition and lexical error handling.
+6. Update the specification, audit, and design documentation whenever an agreed language rule or implementation behavior changes.
 
 ## Documentation Status
 
 These documents evolve alongside the Kora Lexer implementation.
 
-The lexical specification serves as the reference for expected behavior, while the audit records the implementation's current status. Changes to either the language rules or lexer behavior should be reflected in the appropriate document and supported by testing.
+The lexical specification serves as the reference for expected behavior, the audit records the implementation's current status, and the design document explains the architecture.
+
+Changes to the language rules, implementation behavior, or lexer architecture should be reflected in the appropriate document and supported by testing.

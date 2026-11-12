@@ -644,13 +644,19 @@ Token read_string_content(Lexer *lexer) {
                 return make_token(lexer, TOKEN_STRING_TEXT, length);
             }
 
-            int error_length = (escaped == '\0') ? 1 : 2;
+            // Do not consume a physical newline as part of an invalid escape.
+            // Leave it for read_newline() to handle its line-ending rules.
+            int error_length =
+                (escaped == '\0' || escaped == '\n' || escaped == '\r')
+                ? 1
+                : 2;
 
             return make_error_token(
                 lexer,
                 error_length,
                 LEX_ERROR_INVALID_ESCAPE
             );
+
         }
 
         length++;
@@ -698,8 +704,13 @@ Token read_string_content(Lexer *lexer) {
     // Unescaped newline inside a string.
     if (current == '\n' || current == '\r') {
         Token token = read_newline(lexer);
-        token.type = TOKEN_ERROR;
-        token.error_code = LEX_ERROR_UNTERMINATED_STRING;
+
+        // LF and CRLF mean the string is unterminated.
+        // Preserve INVALID_NEWLINE for standalone CR.
+        if (token.type == TOKEN_NEWLINE) {
+            token.type = TOKEN_ERROR;
+            token.error_code = LEX_ERROR_UNTERMINATED_STRING;
+        }
 
         pop_context(lexer);
 
@@ -800,9 +811,15 @@ Token get_next_token(Lexer *lexer) {
             context->type == LEXER_CONTEXT_INTERPOLATION) {
 
             Token token = read_newline(lexer);
-            token.type = TOKEN_ERROR;
-            token.error_code = LEX_ERROR_UNTERMINATED_INTERPOLATION;
 
+            // LF and CRLF mean the interpolation is unterminated.
+            // Preserve INVALID_NEWLINE for standalone CR.
+            if (token.type == TOKEN_NEWLINE) {
+                token.type = TOKEN_ERROR;
+                token.error_code = LEX_ERROR_UNTERMINATED_INTERPOLATION;
+            }
+
+            // End all active string/interpolation contexts.
             lexer->context_depth = 0;
 
             return token;

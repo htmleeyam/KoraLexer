@@ -1870,6 +1870,218 @@ void test_block_comment_newline_inside_interpolation(void) {
           "Ends interpolation and skips remaining comment after standalone CR");
 }
 
+
+void test_standalone_cr_inside_string_contexts(void) {
+    printf("\n--- Test 25: Standalone CR Inside Strings and Interpolation ---\n");
+
+    Token token;
+
+    // Case 1: Standalone CR inside an ordinary string.
+    const char *string_source = "\"hello\rworld";
+
+    Lexer string_lexer = create_lexer(string_source);
+
+    token = get_next_token(&string_lexer);
+    check(token_matches(&token, TOKEN_STRING_START, "\""),
+          "Recognizes string start before standalone CR");
+
+    token = get_next_token(&string_lexer);
+    check(token_matches(&token, TOKEN_STRING_TEXT, "hello"),
+          "Preserves string text before standalone CR");
+
+    token = get_next_token(&string_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\r"),
+          "Detects standalone CR inside ordinary string");
+
+    check(token.error_code == LEX_ERROR_INVALID_NEWLINE,
+          "Uses INVALID_NEWLINE error category inside ordinary string");
+
+    check(token.line == 1 && token.column == 7,
+          "Reports correct location of standalone CR inside string");
+
+    token = get_next_token(&string_lexer);
+    check(token_matches(&token, TOKEN_IDENTIFIER, "world"),
+          "Terminates string context and recognizes following identifier");
+
+    token = get_next_token(&string_lexer);
+    check(token.type == TOKEN_EOF,
+          "Reaches EOF after standalone CR inside string");
+
+
+    // Case 2: Standalone CR inside an interpolation expression.
+    const char *interpolation_source = "\"hello {1\r+ 2";
+
+    Lexer interpolation_lexer = create_lexer(interpolation_source);
+
+    token = get_next_token(&interpolation_lexer);
+    check(token_matches(&token, TOKEN_STRING_START, "\""),
+          "Recognizes string start before interpolation CR");
+
+    token = get_next_token(&interpolation_lexer);
+    check(token_matches(&token, TOKEN_STRING_TEXT, "hello "),
+          "Preserves string text before interpolation");
+
+    token = get_next_token(&interpolation_lexer);
+    check(token_matches(&token, TOKEN_INTERPOLATION_START, "{"),
+          "Recognizes interpolation start");
+
+    token = get_next_token(&interpolation_lexer);
+    check(token_matches(&token, TOKEN_INTEGER, "1"),
+          "Recognizes integer before standalone CR in interpolation");
+
+    token = get_next_token(&interpolation_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\r"),
+          "Detects standalone CR inside interpolation");
+
+    check(token.error_code == LEX_ERROR_INVALID_NEWLINE,
+          "Uses INVALID_NEWLINE error category inside interpolation");
+
+    check(token.line == 1 && token.column == 10,
+          "Reports correct location of standalone CR inside interpolation");
+
+    token = get_next_token(&interpolation_lexer);
+    check(token_matches(&token, TOKEN_PLUS, "+"),
+          "Terminates string and interpolation contexts after standalone CR");
+
+    token = get_next_token(&interpolation_lexer);
+    check(token_matches(&token, TOKEN_INTEGER, "2"),
+          "Continues recognizing tokens after interpolation recovery");
+
+    token = get_next_token(&interpolation_lexer);
+    check(token.type == TOKEN_EOF,
+          "Reaches EOF after standalone CR inside interpolation");
+}
+
+
+void test_backslash_before_physical_newlines(void) {
+    printf("\n--- Test 26: Backslash Before Physical Newlines ---\n");
+
+    Token token;
+
+    // Case 1: Backslash followed by LF.
+    const char *lf_source = "\"hello\\\nworld";
+    Lexer lf_lexer = create_lexer(lf_source);
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_STRING_START, "\""),
+          "Recognizes string start before backslash and LF");
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_STRING_TEXT, "hello"),
+          "Preserves string text before backslash and LF");
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\\"),
+          "Reports backslash before LF as invalid escape");
+
+    check(token.error_code == LEX_ERROR_INVALID_ESCAPE,
+          "Uses INVALID_ESCAPE for backslash before LF");
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\n"),
+          "Processes LF separately after invalid escape");
+
+    check(token.error_code == LEX_ERROR_UNTERMINATED_STRING,
+          "Uses UNTERMINATED_STRING for LF inside string");
+
+    check(token.line == 1 && token.column == 8,
+          "Reports correct LF location after backslash");
+
+    token = get_next_token(&lf_lexer);
+    check(token_matches(&token, TOKEN_IDENTIFIER, "world"),
+          "Recovers and recognizes identifier after LF");
+
+    check(token.line == 2 && token.column == 1,
+          "Correctly updates location after LF recovery");
+
+    token = get_next_token(&lf_lexer);
+    check(token.type == TOKEN_EOF,
+          "Reaches EOF after LF recovery");
+
+
+    // Case 2: Backslash followed by CRLF.
+    const char *crlf_source = "\"hello\\\r\nworld";
+    Lexer crlf_lexer = create_lexer(crlf_source);
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_STRING_START, "\""),
+          "Recognizes string start before backslash and CRLF");
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_STRING_TEXT, "hello"),
+          "Preserves string text before backslash and CRLF");
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\\"),
+          "Reports backslash before CRLF as invalid escape");
+
+    check(token.error_code == LEX_ERROR_INVALID_ESCAPE,
+          "Uses INVALID_ESCAPE for backslash before CRLF");
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\r\n"),
+          "Processes CRLF separately after invalid escape");
+
+    check(token.error_code == LEX_ERROR_UNTERMINATED_STRING,
+          "Uses UNTERMINATED_STRING for CRLF inside string");
+
+    check(token.line == 1 && token.column == 8,
+          "Reports correct CRLF location after backslash");
+
+    token = get_next_token(&crlf_lexer);
+    check(token_matches(&token, TOKEN_IDENTIFIER, "world"),
+          "Recovers and recognizes identifier after CRLF");
+
+    check(token.line == 2 && token.column == 1,
+          "Correctly updates location after CRLF recovery");
+
+    token = get_next_token(&crlf_lexer);
+    check(token.type == TOKEN_EOF,
+          "Reaches EOF after CRLF recovery");
+
+
+    // Case 3: Backslash followed by standalone CR.
+    const char *cr_source = "\"hello\\\rworld";
+    Lexer cr_lexer = create_lexer(cr_source);
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_STRING_START, "\""),
+          "Recognizes string start before backslash and standalone CR");
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_STRING_TEXT, "hello"),
+          "Preserves string text before standalone CR");
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\\"),
+          "Reports backslash before standalone CR as invalid escape");
+
+    check(token.error_code == LEX_ERROR_INVALID_ESCAPE,
+          "Uses INVALID_ESCAPE for backslash before standalone CR");
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_ERROR, "\r"),
+          "Processes standalone CR separately after invalid escape");
+
+    check(token.error_code == LEX_ERROR_INVALID_NEWLINE,
+          "Preserves INVALID_NEWLINE for standalone CR");
+
+    check(token.line == 1 && token.column == 8,
+          "Reports correct standalone CR location");
+
+    token = get_next_token(&cr_lexer);
+    check(token_matches(&token, TOKEN_IDENTIFIER, "world"),
+          "Recovers and recognizes identifier after standalone CR");
+
+    check(token.line == 1 && token.column == 9,
+          "Does not incorrectly increment line after standalone CR");
+
+    token = get_next_token(&cr_lexer);
+    check(token.type == TOKEN_EOF,
+          "Reaches EOF after standalone CR recovery");
+}
+
+
 int main(void) {
     printf("========================================\n");
     printf("       KORA LEXER AUTOMATED TESTS       \n");
@@ -1899,6 +2111,8 @@ int main(void) {
     test_comment_newline_edge_cases();
     test_empty_and_whitespace_input();
     test_block_comment_newline_inside_interpolation();
+    test_standalone_cr_inside_string_contexts();
+    test_backslash_before_physical_newlines();
 
     printf("\n========================================\n");
     printf("TEST SUMMARY\n");

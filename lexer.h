@@ -147,7 +147,6 @@ Token make_error_token(
 Token get_next_token(Lexer *lexer);
 Token read_operator_or_delimiter(Lexer *lexer);
 Token read_number(Lexer *lexer);
-Token read_string(Lexer *lexer);
 Token read_string_content(Lexer *lexer);
 
 int read_comment(Lexer *lexer, Token *token);
