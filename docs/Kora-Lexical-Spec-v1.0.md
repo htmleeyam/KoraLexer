@@ -41,13 +41,16 @@ These are working lexer decisions. Where the project documentation and a team de
 
 ## 2. What the lexer is responsible for
 
-The lexer reads source code from left to right and produces a sequence of tokens. Each token should retain:
+The lexer reads source code from left to right and produces a sequence of tokens. Each token produced by the current implementation retains:
 
 - `TokenType` — the category of the token.
-- `Lexeme` — the exact source characters that formed the token.
-- `LiteralValue` — an optional converted value, such as an integer, float, or Boolean.
+- `Lexeme` — the exact source characters that formed the token, represented by a pointer into the original source.
+- `Length` — the number of characters in the lexeme.
 - `Line` — the source line where the token starts.
 - `Column` — the source column where the token starts.
+- `ErrorCode` — the classification of a lexical error when the token type is `TOKEN_ERROR`.
+
+The current lexer preserves the original lexeme but does not convert or store literal values. Conversion of integer, floating-point, Boolean, or other literal values may be performed by a later stage of the compiler when needed.
 
 The lexer does **not** decide whether a program is logically correct. The parser and later semantic checks handle matters such as:
 
@@ -235,7 +238,7 @@ Examples:
 127
 ```
 
-The sign is not part of an ordinary integer token. For example, `-12` is normally tokenized as `MINUS` followed by `INTEGER_LITERAL(12)`.
+The sign is not part of an ordinary integer token. For example, `-12` is normally tokenized as `MINUS` followed by `INTEGER("12")`.
 
 ### 7.2 Float literal
 
@@ -251,7 +254,13 @@ Examples:
 10.0
 ```
 
-A decimal point is part of a float only when it is followed by at least one digit. Otherwise, `.` is the `DOT` punctuation token. Exponent notation is not specified in the Kora material and is not included in this working specification.
+A decimal point is part of a float only when it is followed by at least one digit. Otherwise, `.` is the `DOT` punctuation token.
+
+A number ending with a decimal point, such as `12.`, is therefore tokenized as an `INTEGER_LITERAL` followed by a `DOT`.
+
+A number beginning with a decimal point followed by digits, such as `.5`, is considered a malformed numeric literal and produces an `INVALID_NUMBER` error. Leading-dot float notation is not supported.
+
+Exponent notation is not specified in the Kora material and is not included in this working specification.
 
 ### 7.3 Boolean literals
 
@@ -260,7 +269,7 @@ true
 false
 ```
 
-These are reserved words and literal values. The implementation may use a shared `BOOLEAN` token type, with `true` mapped to `true` and `false` mapped to `false` in `LiteralValue`.
+These are reserved words and are emitted using the shared `BOOLEAN` token type. The current lexer preserves the original lexeme (`true` or `false`) and does not convert or store a separate Boolean literal value. A later compiler stage may interpret the lexeme as the corresponding Boolean value.
 
 ### 7.4 Pitch literal
 
@@ -285,7 +294,7 @@ C-1
 G9
 ```
 
-**Team decision:** A valid bare note form is a `PITCH_LITERAL` wherever it appears. It does not need a preceding `pitch` word. This follows the later revised lexical elements and the final code blueprint, which use bare pitches in assignments, arrays, and arithmetic expressions.
+**Team decision:** A valid bare note form is recognized as a pitch token wherever it appears. It does not need a preceding `pitch` word. The current implementation emits this token as `PITCH` (`TOKEN_PITCH` in C). This follows the later revised lexical elements and the final code blueprint, which use bare pitches in assignments, arrays, and arithmetic expressions.
 
 The lexer should recognize a complete pitch-shaped lexeme before falling back to a normal identifier. Do not split `C-1` into `IDENTIFIER(C)`, `MINUS`, and `INTEGER_LITERAL(1)` when it matches the pitch rule.
 
@@ -313,11 +322,11 @@ Examples:
 The lexer emits **two tokens**, because the number and unit are independently defined lexical elements and `st` / `oct` are reserved words:
 
 ```text
-INTEGER_LITERAL(2)
+INTEGER("2")
 INTERVAL_UNIT("st")
 ```
 
-Likewise, `1 oct` becomes `INTEGER_LITERAL(1)` followed by `INTERVAL_UNIT("oct")`. The parser combines these tokens into an interval expression.
+Likewise, `1 oct` becomes `INTEGER("1")` followed by `INTERVAL_UNIT("oct")`. The parser combines these tokens into an interval expression.
 
 ### 7.6 String literals and escape sequences
 
@@ -372,7 +381,7 @@ Important distinctions:
 
 The scanner must report an unterminated string if the source ends before the closing quotation mark.
 
-**Implementation note:** The seven-sequence rule is the target behavior for the lexer. The current scanner must be updated and tested for `\'` if it does not yet accept it.
+**Implementation note:** The current lexer recognizes all seven supported escape sequences, including `\'`. Unsupported escape sequences are reported using the `INVALID_ESCAPE` error category.
 
 ### 7.7 String interpolation
 
@@ -409,11 +418,11 @@ LEFT_PAREN
 STRING_START
 STRING_TEXT("Calculation: ")
 INTERPOLATION_START
-INTEGER_LITERAL(7)
+INTEGER("7")
 PLUS
-INTEGER_LITERAL(3)
+INTEGER("3")
 MULTIPLY
-INTEGER_LITERAL(2)
+INTEGER("2")
 INTERPOLATION_END
 STRING_END
 RIGHT_PAREN
@@ -480,14 +489,25 @@ Start when the scanner sees `~~`. Consume characters until the end of the physic
 
 **Newline handling inside multi-line comments:**
 
-Physical line breaks inside a multi-line comment must still be recognized and preserved as `NEWLINE` tokens.
+Physical line breaks inside a multi-line comment are processed according to the current lexer context.
+
+When no interpolation context is active:
 
 - LF (`\n`) produces one `NEWLINE` token.
 - CRLF (`\r\n`) produces one `NEWLINE` token, not two.
 - A standalone CR produces a lexical error.
-- Comment text itself must not produce ordinary tokens.
 
-This ensures that discarding comment text does not silently remove statement boundaries. Line and column tracking must remain correct throughout the comment.
+When a physical line break occurs while an interpolation expression is active, including while the scanner is processing a block comment:
+
+- LF produces an `UNTERMINATED_INTERPOLATION` error.
+- CRLF produces one `UNTERMINATED_INTERPOLATION` error.
+- A standalone CR produces an `INVALID_NEWLINE` error while also terminating the active interpolation context.
+
+After reporting the error, the lexer continues processing the remainder of the block comment. Comment text must not produce ordinary tokens.
+
+This ensures that block-comment handling respects the single-line restriction on string interpolation while preserving normal comment behavior outside interpolation.
+
+Line and column tracking must remain correct throughout the comment.
 
 
 ---
@@ -574,54 +594,109 @@ The meaning of `{` and `}` depends on the current lexer context. Outside strings
 
 ---
 
-## 11. Recommended token inventory
+## 11. Token Inventory
 
-The exact enum naming can be adapted to the implementation language, but the scanner should be able to represent at least these categories:
+The current implementation uses the following `TokenType` enum values. The displayed token names are the strings returned by `token_type_name()`.
 
-| Category | Suggested token types |
-|---|---|
-| Special | `EOF`, `NEWLINE`, `ERROR` |
-| Identifier | `IDENTIFIER` |
-| Literals | `INTEGER_LITERAL`, `FLOAT_LITERAL`, `BOOLEAN`, `PITCH_LITERAL` |
-| Strings and interpolation | `STRING_START`, `STRING_TEXT`, `INTERPOLATION_START`, `INTERPOLATION_END`, `STRING_END` |
-| Reserved words | `KEYWORD`, `TYPE`, `INTERVAL_UNIT` (carrying the original lexeme) |
-| Assignment | `EQUAL`, `PLUS_EQUAL`, `MINUS_EQUAL`, `STAR_EQUAL`, `SLASH_EQUAL`, `PERCENT_EQUAL` |
-| Increment/decrement | `PLUS_PLUS`, `MINUS_MINUS` |
-| Arithmetic | `PLUS`, `MINUS`, `STAR`, `SLASH`, `PERCENT`, `POWER` |
-| Comparison | `EQUAL_EQUAL`, `BANG_EQUAL`, `LESS`, `GREATER`, `LESS_EQUAL`, `GREATER_EQUAL` |
-| Logical | `BANG`, `AND_AND`, `OR_OR` |
-| Function/pipeline | `PIPELINE`, `FAT_ARROW`, `ARROW` |
-| Punctuation | `LEFT_PAREN`, `RIGHT_PAREN`, `LEFT_BRACE`, `RIGHT_BRACE`, `LEFT_BRACKET`, `RIGHT_BRACKET`, `COMMA`, `COLON`, `DOT`, `SEMICOLON` |
+| Category | C TokenType | Displayed Token Name |
+|---|---|---|
+| Special | `TOKEN_EOF` | `EOF` |
+| Special | `TOKEN_NEWLINE` | `NEWLINE` |
+| Special | `TOKEN_ERROR` | `ERROR` |
+| Identifier | `TOKEN_IDENTIFIER` | `IDENTIFIER` |
+| Literals | `TOKEN_INTEGER` | `INTEGER` |
+| Literals | `TOKEN_FLOAT` | `FLOAT` |
+| Literals | `TOKEN_BOOLEAN` | `BOOLEAN` |
+| Literals | `TOKEN_PITCH` | `PITCH` |
+| Reserved words | `TOKEN_KEYWORD` | `KEYWORD` |
+| Reserved words | `TOKEN_TYPE` | `TYPE` |
+| Reserved words | `TOKEN_INTERVAL_UNIT` | `INTERVAL_UNIT` |
+| Strings | `TOKEN_STRING_START` | `STRING_START` |
+| Strings | `TOKEN_STRING_TEXT` | `STRING_TEXT` |
+| Strings | `TOKEN_STRING_END` | `STRING_END` |
+| Interpolation | `TOKEN_INTERPOLATION_START` | `INTERPOLATION_START` |
+| Interpolation | `TOKEN_INTERPOLATION_END` | `INTERPOLATION_END` |
+| Arithmetic | `TOKEN_PLUS` | `PLUS` |
+| Arithmetic | `TOKEN_MINUS` | `MINUS` |
+| Arithmetic | `TOKEN_MULTIPLY` | `MULTIPLY` |
+| Arithmetic | `TOKEN_DIVIDE` | `DIVIDE` |
+| Arithmetic | `TOKEN_MODULO` | `MODULO` |
+| Arithmetic | `TOKEN_POWER` | `POWER` |
+| Increment/decrement | `TOKEN_INCREMENT` | `INCREMENT` |
+| Increment/decrement | `TOKEN_DECREMENT` | `DECREMENT` |
+| Assignment | `TOKEN_ASSIGN` | `ASSIGN` |
+| Assignment | `TOKEN_PLUS_ASSIGN` | `PLUS_ASSIGN` |
+| Assignment | `TOKEN_MINUS_ASSIGN` | `MINUS_ASSIGN` |
+| Assignment | `TOKEN_MULTIPLY_ASSIGN` | `MULTIPLY_ASSIGN` |
+| Assignment | `TOKEN_DIVIDE_ASSIGN` | `DIVIDE_ASSIGN` |
+| Assignment | `TOKEN_MODULO_ASSIGN` | `MODULO_ASSIGN` |
+| Comparison | `TOKEN_EQUAL` | `EQUAL` |
+| Comparison | `TOKEN_NOT_EQUAL` | `NOT_EQUAL` |
+| Comparison | `TOKEN_LESS_THAN` | `LESS` |
+| Comparison | `TOKEN_GREATER_THAN` | `GREATER` |
+| Comparison | `TOKEN_LESS_EQUAL` | `LESS_EQUAL` |
+| Comparison | `TOKEN_GREATER_EQUAL` | `GREATER_EQUAL` |
+| Logical | `TOKEN_AND` | `AND` |
+| Logical | `TOKEN_OR` | `OR` |
+| Logical | `TOKEN_NOT` | `NOT` |
+| Function/pipeline | `TOKEN_PIPELINE` | `PIPELINE` |
+| Function/pipeline | `TOKEN_LAMBDA_ARROW` | `LAMBDA_ARROW` |
+| Function/pipeline | `TOKEN_RETURN_ARROW` | `RETURN_ARROW` |
+| Punctuation | `TOKEN_LEFT_PAREN` | `LEFT_PAREN` |
+| Punctuation | `TOKEN_RIGHT_PAREN` | `RIGHT_PAREN` |
+| Punctuation | `TOKEN_LEFT_BRACE` | `LEFT_BRACE` |
+| Punctuation | `TOKEN_RIGHT_BRACE` | `RIGHT_BRACE` |
+| Punctuation | `TOKEN_LEFT_BRACKET` | `LEFT_BRACKET` |
+| Punctuation | `TOKEN_RIGHT_BRACKET` | `RIGHT_BRACKET` |
+| Punctuation | `TOKEN_COMMA` | `COMMA` |
+| Punctuation | `TOKEN_COLON` | `COLON` |
+| Punctuation | `TOKEN_DOT` | `DOT` |
+| Punctuation | `TOKEN_SEMICOLON` | `SEMICOLON` |
 
-The final interpolation implementation does **not** emit one `STRING_LITERAL` token for an interpolated string. It emits the string and interpolation tokens listed above. A string with no interpolation may still produce `STRING_START`, `STRING_TEXT`, and `STRING_END`.
+The lexer emits separate string and interpolation tokens rather than a single `STRING_LITERAL` token for an interpolated string. A string without interpolation also produces `STRING_START`, `STRING_TEXT` when nonempty, and `STRING_END`.
 
-Comments and ordinary spaces/tabs are skipped rather than emitted as tokens. Newlines are retained as `NEWLINE` tokens according to Section 4.
+Comments, spaces, and horizontal tabs are skipped rather than emitted as ordinary tokens. Physical line endings are handled according to Section 4.
 
+The token structure preserves the original source lexeme and its length. It does not currently store converted literal values.
 ---
 
-## 12. Scanner recognition order
+## 12. Scanner Recognition Order
 
-A hand-coded scanner should follow a predictable order. A practical order for the current interpolation-aware scanner is:
+The lexer uses a hand-coded character scanner that processes source code from left to right.
 
-1. Capture the token's starting line and column.
-2. If the scanner is currently reading string content, process string characters and escapes before treating comment markers or other symbols as tokens.
-3. Outside string content, skip ordinary spaces and horizontal tabs.
-4. Recognize LF and CRLF line endings. Outside a string/interpolation context, emit `NEWLINE`; inside a string or interpolation context, report a physical-newline-in-string lexical error. Report a lexical error for standalone CR.
-5. Check for `~~` and `~*` comment openers before treating `~` as an unsupported character.
-6. If a double quote begins a string, enter a string context and emit `STRING_START`.
-7. Within a string context, recognize supported escapes, ordinary text, unescaped `{` as `INTERPOLATION_START`, and the closing quote as `STRING_END`.
-8. Within an interpolation context, use normal token recognition. Track nested braces so only the matching `}` closes the current interpolation.
-9. Check for a digit and scan an integer or float.
-10. Check for a possible pitch form before falling back to a normal identifier.
-11. If the character can start an identifier, scan the complete identifier, then perform reserved-word lookup.
-12. Check operators using longest-match recognition.
-13. Check delimiters and punctuation.
-14. If no rule matches, record a lexical error with line and column, consume the offending character, and continue where possible.
-15. At the end of the source, report any unterminated string/interpolation/comment context and emit `EOF` according to the implementation's error-reporting design.
+The current implementation follows this general recognition order:
 
-The exact order of pitch and identifier scanning may be implemented with a lookahead helper. The key rule is that a complete pitch pattern such as `C4` is classified as `PITCH_LITERAL`, while a longer identifier such as `C4Name` remains one `IDENTIFIER`.
+1. Check the current lexer context. If the active context is a string, process string content, supported escape sequences, interpolation boundaries, closing quotation marks, and physical newlines using the string-scanning function.
 
-The scanner's string/interpolation context stack must preserve the correct parent context when nested strings and interpolations are entered and exited.
+2. Outside string content, skip ordinary spaces and horizontal tabs.
+
+3. Check for comments. Recognize `~~` as a single-line comment and `~*` as a block comment before treating `~` as an unexpected character. Preserve physical newlines encountered inside block comments according to the current lexer context.
+
+4. Check for the end of the source. If a string or interpolation context remains open, report the appropriate unterminated-context error and clear the active contexts. Otherwise, emit `EOF`.
+
+5. Handle physical newlines. LF and CRLF are valid logical newlines outside string and interpolation contexts. A physical newline inside a string produces `UNTERMINATED_STRING`, while a physical newline inside an active interpolation produces `UNTERMINATED_INTERPOLATION`. A standalone CR produces `INVALID_NEWLINE`.
+
+6. Recognize the opening double quotation mark (`"`), emit `STRING_START`, and push a string context onto the context stack.
+
+7. Check for valid pitch literals and incomplete pitch-like sequences before falling back to normal identifier recognition.
+
+8. Recognize identifiers and keywords. Scan the complete identifier before performing reserved-word classification.
+
+9. Recognize integer and floating-point literals using the numeric rules in Section 7. Malformed numeric sequences, including unsupported leading-dot notation, produce `INVALID_NUMBER`.
+
+10. Track opening and closing braces inside interpolation expressions. Nested braces update the current interpolation's brace depth. Only the matching closing brace emits `INTERPOLATION_END` and removes the corresponding interpolation context.
+
+11. Recognize operators using the longest-match rule in Section 9.
+
+12. Recognize delimiters and punctuation according to Section 10.
+
+13. If no valid recognition rule matches the current character, emit an `ERROR` token using `LEX_ERROR_UNEXPECTED_CHARACTER` and consume the offending character so scanning can continue where possible.
+
+Token construction records the lexeme and its starting source location. Newline handling updates the logical line and column separately from ordinary token construction.
+
+The scanner uses a context stack to preserve nested string and interpolation states. The maximum supported context depth is defined by `MAX_LEXER_CONTEXTS`.
+
+The scanner recognizes lexical structures only. Determining whether expressions, statements, and complete programs follow Kora's grammar belongs to the parser and subsequent compiler stages.
 
 ---
 
@@ -632,17 +707,17 @@ The scanner must detect and report invalid lexical elements instead of silently 
 
 At minimum, the scanner should handle the following error categories:
 
-| Error category | Description | Example |
-|---|---|---|
-| Unexpected character | A character that does not belong to a valid Kora token. | `@` |
-| Invalid numeric literal | A malformed integer or floating-point sequence. | `12.3.4` |
-| Invalid pitch literal | A pitch-like sequence that does not follow the pitch notation rules. | `C#` |
-| Invalid escape sequence | An unsupported escape inside a string. | `\q` |
-| Unterminated string | A string that reaches a physical line break or end of source without a closing quotation mark. | `"Hello` |
-| Unterminated interpolation | An interpolation expression without its matching closing brace. | `"Hello {name` |
-| Unterminated block comment | A multi-line comment without its closing marker. | `~* comment` |
-| Invalid newline | A standalone carriage return or unsupported line-ending sequence. | Standalone `\r` |
-| Context-stack overflow | The lexer exceeds its supported nested context depth. | Excessive nested contexts |
+| Error category | C Error Code | Description | Example |
+|---|---|---|---|
+| Unexpected character | `LEX_ERROR_UNEXPECTED_CHARACTER` | A character that does not belong to a valid Kora token. | `@` |
+| Invalid numeric literal | `LEX_ERROR_INVALID_NUMBER` | A malformed integer or floating-point sequence. | `12.3.4` |
+| Invalid pitch literal | `LEX_ERROR_INVALID_PITCH` | A pitch-like sequence that does not follow the pitch notation rules. | `C#` |
+| Invalid escape sequence | `LEX_ERROR_INVALID_ESCAPE` | An unsupported escape inside a string. | `\q` |
+| Unterminated string | `LEX_ERROR_UNTERMINATED_STRING` | A string that reaches a physical line break or end of source without a closing quotation mark. | `"Hello` |
+| Unterminated interpolation | `LEX_ERROR_UNTERMINATED_INTERPOLATION` | An interpolation expression without its matching closing brace. | `"Hello {name` |
+| Unterminated block comment | `LEX_ERROR_UNTERMINATED_BLOCK_COMMENT` | A block comment without its closing marker. | `~* comment` |
+| Invalid newline | `LEX_ERROR_INVALID_NEWLINE` | A standalone carriage return that is not followed by LF. | Standalone `\r` |
+| Context-stack overflow | `LEX_ERROR_CONTEXT_LIMIT` | The lexer exceeds its supported nested string/interpolation context depth. | Excessive nested contexts |
 
 ### 13.1 Error Information
 
@@ -673,9 +748,11 @@ Suggestions should be specific to the detected error whenever possible.
 | Invalid numeric literal | Check the numeric format. Use a valid integer or decimal. |
 | Invalid pitch literal | Check the pitch notation and provide a valid note and octave. |
 | Invalid escape sequence | Use a supported escape sequence such as `\n`, `\t`, or `\\`. |
-| Unterminated string | Add a closing double quotation mark (`"`). |
+| Unterminated string | Add a closing double quotation mark and avoid unescaped newlines. |
 | Unterminated interpolation | Close the interpolation expression using `}`. |
 | Unterminated block comment | Close the block comment using `*~`. |
+| Invalid newline | Use LF (`\n`) or CRLF (`\r\n`) line endings. |
+| Context-stack overflow | Reduce the nesting depth of strings and interpolations. |
 
 Suggestions are informational guidance. They do not guarantee that the resulting source code is syntactically or semantically valid. The lexer does not automatically repair source code.
 

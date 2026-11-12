@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 #include "lexer.h"
 
 // Terminal colors (ANSI escape codes).
@@ -65,71 +66,87 @@ char *read_source_file(const char *filename) {
     return source;
 }
 
-// Make special characters visible in the terminal.
-void print_escaped_lexeme(const char *lexeme, char *output) {
-    int j = 0;
 
-    for (int i = 0; lexeme[i] != '\0' && j < 1000; i++) {
+// Print a lexeme while making special characters visible.
+// Returns the number of characters displayed.
+size_t print_escaped_lexeme(const char *lexeme, int length) {
+    size_t output_length = 0;
+
+    if (lexeme == NULL || length <= 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < length; i++) {
         switch (lexeme[i]) {
             case '\n':
-                output[j++] = '\\';
-                output[j++] = 'n';
+                fputs("\\n", stdout);
+                output_length += 2;
                 break;
 
             case '\r':
-                output[j++] = '\\';
-                output[j++] = 'r';
+                fputs("\\r", stdout);
+                output_length += 2;
                 break;
 
             case '\t':
-                output[j++] = '\\';
-                output[j++] = 't';
+                fputs("\\t", stdout);
+                output_length += 2;
                 break;
 
             case '\\':
-                output[j++] = '\\';
-                output[j++] = '\\';
+                fputs("\\\\", stdout);
+                output_length += 2;
                 break;
 
             default:
-                output[j++] = lexeme[i];
+                putchar((unsigned char)lexeme[i]);
+                output_length++;
                 break;
         }
     }
 
-    output[j] = '\0';
+    return output_length;
 }
+
+
 
 // Print one token with lexeme first and token type second.
 void print_token(Token token) {
-    char escaped[1024];
-
-    print_escaped_lexeme(token.lexeme, escaped);
-
     if (token.type == TOKEN_ERROR) {
-        printf(RED "%-24s %-24s" RESET "\n",
-            escaped,
-            token_type_name(token.type));
+        printf(RED);
     } else {
-        printf(WHITE "%-24s %-24s" RESET "\n",
-            escaped,
-            token_type_name(token.type));
+        printf(WHITE);
     }
+
+    size_t lexeme_width =
+        print_escaped_lexeme(token.lexeme, token.length);
+
+    // Preserve column width and separate long lexemes.
+    size_t padding = (lexeme_width < 24)
+        ? 24 - lexeme_width
+        : 1;
+
+    for (size_t i = 0; i < padding; i++) {
+        putchar(' ');
+    }
+
+    printf("%-24s", token_type_name(token.type));
+
+    printf(RESET "\n");
 }
+
+
 
 // Display additional information for lexical errors.
 void print_error_details(Token token) {
-    char escaped[1024];
-
-    print_escaped_lexeme(token.lexeme, escaped);
-
     printf(RED "\n  LEXICAL ERROR\n" RESET);
 
     printf(WHITE "  Description : " RED "%s\n" RESET,
         lexical_error_message(token.error_code));
 
-    printf(WHITE "  Lexeme      : " RED "'%s'\n" RESET,
-        escaped);
+    printf(WHITE "  Lexeme      : " RED "'");
+    print_escaped_lexeme(token.lexeme, token.length);
+    printf("'\n" RESET);
 
     printf(WHITE "  Location    : Line %d, Column %d\n" RESET,
         token.line,
@@ -138,6 +155,7 @@ void print_error_details(Token token) {
     printf(WHITE "  Suggestion  : %s\n\n" RESET,
         lexical_error_suggestion(token.error_code));
 }
+
 
 int main(int argc, char *argv[]) {
     printf("\n");
@@ -201,6 +219,7 @@ int main(int argc, char *argv[]) {
         .inside_block_comment = 0,
         .block_comment_start_line = 0,
         .block_comment_start_column = 0,
+        .block_comment_start_position = 0,
         .context_depth = 0
     };
 
