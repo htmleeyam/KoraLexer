@@ -64,6 +64,7 @@ KoraLexer/
 │   ├── 08_combined_program.kora
 │   ├── 09_invalid_inputs.kora
 │   ├── 10_newlines.kora
+│   ├── kora-example.kora
 │   ├── test_error-detection.kora
 │   └── test_features.kora
 │

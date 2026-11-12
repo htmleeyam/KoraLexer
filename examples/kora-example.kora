@@ -1,0 +1,12 @@
+class Main {
+    function main() {
+        int songCount = 0
+
+        chorus (true) tempo(5) {
+            sing("Adding song to playlist...")
+            songCount++
+        }
+
+        sing("Playlist process finished.")
+    }
+}
