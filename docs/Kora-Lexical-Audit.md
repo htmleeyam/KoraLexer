@@ -1,135 +1,229 @@
-I’ll audit the specification and compare it with the repository’s lexer/examples, without editing any files.
 
-Read , lines 1 to 220
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\docs\\Kora-Lexical-Spec-v1.0 (1).md",
-  "view_range": [
-    1,
-    220
-  ]
-}
+# Kora Lexical Audit
 
-Read , lines 221 to 440
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\docs\\Kora-Lexical-Spec-v1.0 (1).md",
-  "view_range": [
-    221,
-    440
-  ]
-}
+## 1. Purpose
 
-Read , lines 441 to 582
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\docs\\Kora-Lexical-Spec-v1.0 (1).md",
-  "view_range": [
-    441,
-    582
-  ]
-}
+This document evaluates the current implementation of the Kora Lexical Analyzer against the rules defined in `Kora-Lexical-Spec-v1.0.md`.
 
-Read 
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\README.md"
-}
+The audit records implemented features, verified test results, differences between the specification and implementation, and areas that may require further refinement.
 
-Read 
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\lexer.h"
-}
+The audit is based on the current source code and the test outputs available at the time of review.
 
-Read 
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\lexer.c"
-}
+## 2. Implementation Overview
 
-Read 
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\main.c"
-}
+The Kora Lexical Analyzer uses a **hand-coded, procedural scanning approach**.
 
-Read 
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\test.kora"
-}
+The main scanning function reads source code character by character and delegates token recognition to specialized functions for different lexical elements.
 
-The specification is internally detailed, but I’m checking its rules against the current C token inventory and scanner behavior to distinguish documented contradictions from recommendations.
+The implementation includes:
 
-Read , lines 1 to 180
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\lexer.c",
-  "view_range": [
-    1,
-    180
-  ]
-}
+- Token recognition and classification.
+- Identifier and reserved-word recognition.
+- Numeric and pitch literal recognition.
+- Operator and delimiter recognition.
+- String and interpolation processing.
+- Single-line and multi-line comment handling.
+- Source line and column tracking.
+- Lexical error detection and reporting.
 
-Read , lines 181 to 360
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\lexer.c",
-  "view_range": [
-    181,
-    360
-  ]
-}
+The lexer also maintains a context stack to support nested strings and interpolation expressions.
 
-"Read" failed
-Completed with input: {
-  "path": "C:\\Projects\\KoraLexer\\lexer.c",
-  "view_range": [
-    361,
-    520
-  ]
-}
-Tool execution failed: view_range out of bounds
+## 3. Implemented Features
 
-Search for `\b(sync|synch|print|play|note|silence|repeat|notation|data|transpose|quarter|...`
+| Feature | Implementation status | Description |
+|---|---|---|
+| Keyword recognition | Implemented | Recognizes the 38 reserved lexemes and classifies them into the appropriate token categories. |
+| Identifier recognition | Implemented | Recognizes identifiers using the defined naming rules and preserves their complete lexemes. |
+| Integer literals | Implemented | Recognizes integer literal lexemes without converting them into numeric values. |
+| Floating-point literals | Implemented | Recognizes decimal numeric lexemes according to the specified format. |
+| Boolean literals | Implemented | Classifies `true` and `false` using the `BOOLEAN` token type. |
+| Pitch literals | Implemented | Recognizes valid pitch-shaped sequences and detects specified malformed pitch-like sequences. |
+| Interval units | Implemented | Recognizes `st` and `oct` as interval-unit tokens. |
+| Operators | Implemented | Recognizes supported arithmetic, assignment, comparison, logical, and other operators using longest-match recognition. |
+| Delimiters | Implemented | Recognizes parentheses, braces, brackets, commas, colons, dots, and semicolons. |
+| Newline handling | Implemented | Recognizes LF and CRLF as logical newlines and reports standalone CR as a lexical error. |
+| Single-line comments | Implemented | Recognizes and skips `~~` comments while preserving the following physical newline. |
+| Multi-line comments | Implemented | Recognizes and skips `~* ... *~` comments, preserves physical newlines, and detects unterminated block comments. |
+| String literals | Implemented | Recognizes string boundaries and string content. |
+| String escapes | Implemented | Recognizes all seven supported escape sequences and reports unsupported escape sequences. |
+| String interpolation | Implemented | Recognizes interpolation boundaries and normal expression tokens inside interpolation. |
+| Nested contexts | Implemented | Uses a bounded context stack to handle nested strings and interpolation expressions. |
+| Lexical error reporting | Implemented | Reports error descriptions, lexemes, source locations, and correction suggestions. |
+| Error recovery | Implemented with limitations | Continues scanning after tested recoverable lexical errors. Recovery behavior depends on the type and context of the error. |
 
-Ran terminal command: git status --short; git --no-pager ls-files
+## 4. Lexical Error Handling and Reporting
 
-## Audit scope
+The lexer includes a diagnostic mechanism for identifying invalid lexical elements.
 
-I reviewed `Kora-Lexical-Spec-v1.0 (1).md`, plus the current `lexer.c`, `lexer.h`, `README.md`, and `test.kora`. No files were modified.
+When an error is encountered, the implementation reports:
 
-The requested filename without `(1)` does not exist; the available specification is the file linked above.
+- **Description:** A readable explanation of the error.
+- **Lexeme:** The invalid character or source sequence associated with the error.
+- **Location:** The line and column where the lexer encountered the problem.
+- **Suggestion:** A possible correction based on the error category.
 
-## Findings
+### 4.1 Supported Error Categories
 
-| # | Section | Problem or ambiguity | Basis | Proposed resolution | Class |
-|---|---|---|---|---|---|
-| 1 | 1. Source and revision authority | The specification refers to an “established Kora specification,” “first part of the documentation,” and a “code blueprint,” but those source documents are not present in the repository. Conflict resolution cannot be independently verified. | Documentation/auditability issue; not a confirmed team decision. | Identify the authoritative original document and revision, or explicitly state that this file is the sole authority. Record any superseded rules directly. | **Critical** |
-| 2 | 3. Character set | Only ASCII letters and digits are defined. The handling of non-ASCII source characters, tabs, carriage returns, and other control characters is not fully normative. | Implementation recommendation, except ASCII identifier syntax is explicit. | State whether source is ASCII-only or define an encoding and behavior for non-ASCII/control characters. Make tab and lone `\r` behavior normative. | **Important** |
-| 3 | 4. Whitespace and line boundaries | `NEWLINE` emission is conditional: “if the parser will use newlines.” This leaves tokenization dependent on an undeclared parser decision, despite newline being described as a statement terminator. | Contradicts the need for a deterministic lexical specification. | Decide whether physical newlines always produce `NEWLINE` tokens. Also specify blank lines, newline after comments, and lone `\r`. | **Critical** |
-| 4 | 5–6. Identifiers and reserved words | The document correctly states that `print`, `play`, `note`, `silence`, `repeat`, `notation`, `data`, `transpose`, and `quarter` are identifiers. However, the current scanner still uses a different keyword inventory and classifies keywords generically. It includes `auto`, which is not in the final 36-word list, and omits many final reserved words. | Contradicts the confirmed team decisions and the v1.0 list when compared with current implementation. | Treat the 36-word table as authoritative; remove `auto` unless formally added; ensure all listed words are reserved and all named built-ins remain identifiers. | **Critical** |
-| 5 | 6. Reserved words | The exact token representation is left open between generic `KEYWORD` and dedicated `KW_*` tokens. This affects the promised token inventory and parser interface. | Implementation recommendation, not an official language contradiction. | Choose one representation before implementing the parser. If generic `KEYWORD` is used, require exact lexeme inspection. | **Important** |
-| 6 | 7. Numeric literals | Malformed numeric forms are not precisely defined. Examples include `1.`, `1.2.3`, `12abc`, and possible exponent forms. The specification says malformed numeric sequences should be reported but does not define token boundaries or recovery. | Lexical ambiguity; exponent exclusion is explicit, but other malformed forms are not. | Define maximal numeric scanning and diagnostics. For example, decide whether `1.` is `INTEGER_LITERAL` + `DOT` or an error, and whether `12abc` is valid adjacent tokens or one malformed literal. | **Critical** |
-| 7 | 7. Pitch literals | The team decision that bare pitches are `PITCH_LITERAL` is clear. However, malformed pitch-like text is not fully defined: `C#`, `C-`, `C10`, `C4.5`, and `C4foo` have different possible interpretations. The boundary rule resolves `C4foo`, but not the others. | Confirmed decision resolves valid forms; remaining cases are lexical ambiguities. | Define whether malformed pitch-shaped sequences are errors or ordinary identifier/operator sequences, and specify boundaries around `.`, `-`, accidental markers, and digits. | **Critical** |
-| 8 | 7.5. Intervals | `Interval = number Unit` does not state whether whitespace is required. Consequently, `2 st`, `2st`, and `2 stx` are not consistently specified. | `st` and `oct` are reserved words, but adjacency rules are not stated. | Require whitespace between the numeric token and unit, or explicitly support adjacent forms and define their tokenization. | **Important** |
-| 9 | 7.6–7.7. Strings and interpolation | Stage 1 and final-stage tokenization are described, but the transition is not specified as a versioned lexical contract. Escape sequences, physical newlines, and braces are deliberately unresolved. | The two-stage team decision is clear; affected edge cases remain open. | Define stage 1 as the implementation target: one `STRING_LITERAL`, no interpolation tokenization, explicit quote/newline rules. Define stage 2 separately before implementation. | **Important** |
-| 10 | 8 and 15. Comments | The treatment of newlines inside multi-line comments is inconsistent. Section 8 says comment content is consumed; Section 15 recommends preserving physical line boundaries if newlines terminate statements. It is unclear whether `NEWLINE` tokens are emitted from inside block comments. | Internal specification ambiguity. | State explicitly whether newlines inside `~* ... *~` generate `NEWLINE` tokens or are discarded while only line counters are updated. | **Critical** |
-| 11 | 9. Operators | The valid-operator list is clear, but invalid longer sequences are not. Examples include `===`, `!==`, `**=`, `&&&`, and `|||`. The longest-match rule alone does not specify whether these become multiple valid tokens or lexical errors. | Implementation recommendation needed for deterministic diagnostics. | Define maximal valid-token scanning and error behavior for unsupported operator combinations. | **Important** |
-| 12 | 9 and 10. Symbol ownership | `#` is listed among characters but is only valid as a pitch accidental; `~` is only valid as a comment opener. Standalone `#` and `~` are not explicitly classified. | Mostly an implementation recommendation, but affects lexical errors. | State that standalone `#` and `~` are lexical errors unless part of a valid pitch/comment marker. | **Optional** |
-| 13 | 10–11. Token inventory | The inventory allows either dedicated keyword tokens or generic `KEYWORD` tokens, and stage 2 interpolation tokens are mixed into the general inventory. It also does not specify the representation of lexical-error details or literal values despite Section 2 requiring them. | Internal interface ambiguity; current C `Token` lacks `LiteralValue`. | Define the stage 1 token inventory and required token payload fields separately from future interpolation tokens. Specify required error payloads. | **Important** |
-| 14 | 12. Recognition order | Pitch recognition is required before identifier fallback, but the exact lookahead/backtracking rule is not defined. This matters for `C4`, `C4Name`, `C-1`, and strings beginning with pitch-like text. | Confirmed pitch decision is clear; algorithmic boundary behavior needs formalization. | Specify a deterministic pitch recognizer with full-token boundary validation, then identifier fallback without consuming partial input. | **Important** |
-| 15 | 13. Lexical errors and recovery | “Malformed numeric or pitch sequence” is listed as an error, but recovery units are unspecified. Consuming one character may produce cascaded errors or split a malformed construct unpredictably. | Implementation recommendation with observable diagnostic impact. | Define recovery synchronization for malformed literals/comments/strings, while preserving the requirement to make progress. | **Important** |
-| 16 | 14. Suggested tests | The tests do not cover the main unresolved boundaries: CRLF/lone CR, tabs, block-comment newlines, malformed numbers, malformed pitches, `sync`, unsupported standalone symbols, or operator combinations. | Test coverage gap; not an official language contradiction. | Add tests after the corresponding rules are decided. Do not treat tests as language rules until the specification is updated. | **Optional** |
-| 17 | 15. Open decisions | The section calls several choices “not blockers,” but string escapes, multiline strings, newline significance, and block-comment newline behavior directly affect scanner state and token boundaries. | Contradicts the completion requirement that the specification be agreed before implementation. | Reclassify scanner-affecting choices as blockers for the affected feature, even if they do not block unrelated integer/operator work. | **Critical** |
-| 18 | Current code vs specification | The current scanner does not implement comments, strings, pitches, booleans, `NEWLINE`, or the final keyword set. It also skips tabs and does not update line numbers. This is not a defect in the document, but the implementation must not be treated as evidence that the specification is already implemented. | Contradiction between current repository behavior and the documented target. | Use the specification as the target contract and update implementation only after the unresolved rules above are settled. | **Important** |
+| Error category | C Error Code | Example | Reported behavior |
+|---|---|---|---|
+| Unexpected character | `LEX_ERROR_UNEXPECTED_CHARACTER` | `@` | Identifies an unsupported character. |
+| Malformed numeric literal | `LEX_ERROR_INVALID_NUMBER` | `12.3.4` | Reports an invalid numeric format. |
+| Malformed pitch literal | `LEX_ERROR_INVALID_PITCH` | `C#` | Reports an incomplete pitch notation. |
+| Invalid string escape | `LEX_ERROR_INVALID_ESCAPE` | `\q` | Identifies an unsupported escape sequence. |
+| Unterminated string | `LEX_ERROR_UNTERMINATED_STRING` | Missing closing `"` | Reports a string that reaches a physical line break or end of source without being closed. |
+| Unterminated interpolation | `LEX_ERROR_UNTERMINATED_INTERPOLATION` | Missing `}` | Reports an interpolation expression that reaches a physical line break or end of source without being closed. |
+| Unterminated block comment | `LEX_ERROR_UNTERMINATED_BLOCK_COMMENT` | Missing `*~` | Reports a block comment that reaches the end of the source without its closing marker. |
+| Invalid newline | `LEX_ERROR_INVALID_NEWLINE` | Standalone `\r` | Reports a carriage return that is not followed by LF. |
+| Context-stack overflow | `LEX_ERROR_CONTEXT_LIMIT` | Excessive nested string/interpolation contexts | Reports that the maximum supported context depth has been exceeded. |
 
-## Area-by-area assessment
+### 4.2 Example Diagnostic Output
 
-- **Character set and identifiers:** Identifier syntax is mostly clear; source encoding and control-character handling remain underspecified.
-- **36 reserved words:** The table contains 36 words and correctly preserves `synch` rather than `sync`. The current C implementation does not match it.
-- **Literals:** Boolean and pitch decisions are clear. Numeric malformed-input behavior and interval spacing need resolution.
-- **Comments and whitespace:** Comment markers are clear, but newline behavior inside block comments is not.
-- **Operators:** The listed operators and longest-match examples are adequate for valid input; invalid combinations need diagnostics rules.
-- **Delimiters and punctuation:** The delimiter inventory is complete for the listed grammar. Standalone `#` and `~` behavior should be stated.
-- **Newlines:** Not implementation-ready because emission is conditional.
-- **String interpolation:** The two-stage team decision is coherent. Stage 1 can be implemented independently once escapes and physical-newline behavior are fixed.
-- **Token inventory:** Requires a definite stage 1 contract and payload/error representation.
-- **Lexical errors and recovery:** Error categories exist, but recovery and malformed-token boundaries are insufficiently specified.
+For the input:
 
-## Readiness
+```kora
+int score = 100 @
+```
 
-**The specification is not ready for full implementation.**
+The lexer produces:
 
-A limited stage 1 scanner for identifiers, the finalized reserved words, basic numbers, valid operators, delimiters, comments, and ordinary strings could begin after resolving the corresponding Important issues. However, the **Critical** issues—especially newline emission, malformed literal boundaries, block-comment newline behavior, source authority, and unresolved scanner-affecting decisions—should be settled before implementing the complete hand-coded lexer.
+```text
+LEXICAL ERROR
+Description : Unexpected character.
+Lexeme      : '@'
+Location    : Line 1, Column 17
+Suggestion  : Remove the character or replace it with a valid Kora token.
+```
+
+This allows the programmer to identify the issue without manually inspecting the entire source file.
+
+### 4.3 Error Recovery
+
+The lexer attempts to continue scanning after recoverable lexical errors.
+
+This allows multiple invalid elements to be identified during one execution instead of stopping at the first error.
+
+However, recovery depends on the type of error. An unterminated construct at the end of the file, such as a block comment, naturally prevents recognition of tokens beyond that construct.
+
+The suggestions are informational and do not automatically modify the source code.
+
+## 5. Verification and Test Results
+
+### 5.1 Lexical Error Detection Test
+
+**Test file:** `examples/test_error-detection.kora`
+
+The test file contains deliberately invalid lexical elements to verify the diagnostic mechanism.
+
+| Test | Input | Expected result | Observed result |
+|---|---|---|---|
+| 1 | `@` | Unexpected character | Passed |
+| 2 | `12.3.4` | Malformed numeric literal | Passed |
+| 3 | `C#` | Malformed pitch literal | Passed |
+| 4 | `\q` | Invalid escape sequence | Passed |
+| 5 | Unclosed string | Unterminated string | Passed |
+| 6 | Unclosed interpolation | Unterminated interpolation | Passed |
+| 7 | Unclosed block comment | Unterminated block comment | Passed |
+
+**Observed summary:**
+
+```text
+Total tokens: 58
+Lexical errors: 7
+Lexical analysis completed with errors.
+```
+
+All seven deliberately introduced errors were detected and accompanied by descriptions and correction suggestions.
+
+The output also demonstrates that the lexer continued recognizing subsequent tokens after recoverable errors.
+
+### 5.2 Automated Regression Test Suite
+
+**Test file:** `tests/lexer_tests.c`
+
+The project includes an automated regression test suite covering token recognition, lexical boundaries, error detection, source locations, and recovery behavior.
+
+The suite currently contains 26 test groups:
+
+| Test | Coverage |
+|---|---|
+| 1 | Basic Token Recognition |
+| 2 | Long Identifier Preservation |
+| 3 | CRLF Newline Handling |
+| 4 | Keyword Boundary Recognition |
+| 5 | Pitch Literal Boundaries |
+| 6 | Numeric Literal Validation |
+| 7 | Operators and Delimiters |
+| 8 | Adjacent Operators and Longest Match |
+| 9 | String Literals and Escape Sequences |
+| 10 | Basic String Interpolation |
+| 11 | Nested Braces and Nested Strings |
+| 12 | Unterminated Strings and Recovery |
+| 13 | Unterminated Interpolation and Recovery |
+| 14 | Single-Line and Block Comments |
+| 15 | Lexer Context Stack Limit |
+| 16 | Standalone Carriage Return |
+| 17 | Complete Reserved-Word Inventory |
+| 18 | Unexpected Characters and Error Recovery |
+| 19 | Escaped Opening Brace |
+| 20 | Dangling Backslash at End of String |
+| 21 | Accidental Pitch Boundaries |
+| 22 | Newline Edge Cases Inside Block Comments |
+| 23 | Empty and Whitespace-Only Input |
+| 24 | Block Comment Newlines Inside Interpolation |
+| 25 | Standalone CR Inside Strings and Interpolation |
+| 26 | Backslash Before Physical Newlines |
+
+**Latest reported test result:**
+
+```text
+========================================
+TEST SUMMARY
+Checks run: 584
+Checks failed: 0
+Checks passed: 584
+========================================
+```
+
+All 584 checks passed in the latest reported test execution.
+
+The suite verifies token types, lexemes, source locations, lexical error classifications, context handling, and recovery behavior.
+
+To compile and run the automated tests:
+
+```powershell
+gcc -Wall -Wextra -std=c11 tests/lexer_tests.c lexer.c -o tests/lexer_tests.exe
+
+.\tests\lexer_tests.exe
+```
+
+The automated regression suite complements the standalone example files by testing specific lexical rules and boundary cases individually.
+
+## 6. Differences and Areas for Improvement
+
+Although the current lexer supports the major features described in the working specification, some areas still deserve attention.
+
+| Area | Current observation | Remaining consideration |
+|---|---|---|
+| Error source locations | The lexer reports the location associated with the detected error. For unterminated block comments, it reports the opening delimiter. For physical newlines inside strings and interpolation, it reports the newline location. | The implementation could optionally retain opening quotation-mark or interpolation locations for additional diagnostic context. |
+| Error recovery | Recovery behavior has been tested for unexpected characters, malformed literals, invalid escapes, unterminated strings, interpolation errors, and newline-related errors. | More complicated combinations of malformed nested constructs may require additional tests if new language rules are introduced. |
+| Standalone carriage return | Tested outside strings, inside strings, inside interpolation, and inside block comments. It produces `INVALID_NEWLINE` without incorrectly incrementing the line number. | No known outstanding issue from the current regression tests. |
+| Context-stack limit | The implementation supports up to 64 nested lexer contexts and detects an attempt to exceed that limit. | The fixed maximum depth remains an implementation constraint. |
+| Pitch boundaries | Valid pitch forms, accidental notation, incomplete pitch forms, and identifier boundaries are covered by the regression suite. | Additional cases may be added if the pitch grammar changes. |
+| String newline and escape handling | All seven supported escape sequences are recognized. Backslash followed by LF, CRLF, or standalone CR is covered by Test 26. | Recovery for newly introduced string syntax or escape rules should be tested before implementation. |
+| Specification consistency | The lexical specification has been updated to reflect the current token structure, token names, scanning order, and error classifications. | The working specification may still require final team sign-off. |
+
+## 7. Conclusion
+
+The Kora Lexical Analyzer implements the major token-recognition features defined in its working lexical specification.
+
+Its hand-coded, procedural scanning approach separates token recognition into specialized functions. The implementation supports identifiers, reserved words, numeric and pitch literals, operators, delimiters, strings, interpolation, comments, and physical newline handling.
+
+The lexer also provides categorized lexical errors, source locations, correction suggestions, and recovery behavior for tested invalid inputs.
+
+Nested strings and interpolation expressions are managed through a bounded context stack, while source-slice token lexemes preserve the original source characters without relying on fixed-size lexeme buffers.
+
+The automated regression suite currently contains 26 test groups and 584 individual checks. In the latest reported execution, all 584 checks passed with zero failures.
+
+Although the core lexical features and tested edge cases are implemented, the lexer remains part of the larger Kora language development process. The working lexical specification may still require final team sign-off, and additional testing may be necessary as the language evolves.
+
+Successful lexical analysis does not guarantee that a complete Kora program is syntactically or semantically valid. Those responsibilities belong to the parser and subsequent compiler stages.

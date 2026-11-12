@@ -1,0 +1,30 @@
+fn main() {
+
+    ~~ TEST 1: Unexpected character
+    int score = 100 @
+
+    ~~ TEST 2: Invalid number
+    float price = 12.3.4
+
+    ~~ TEST 3: Invalid pitch
+    pitch note = C# 
+
+    ~~ TEST 4: Invalid escape sequence
+    "Hello, Kora!\q"
+
+    ~~ TEST 5: Unterminated string
+    "This string is never closed
+
+    ~~ TEST 6: Invalid standalone carriage return
+    ~~ Test this separately using a file with a standalone CR byte.
+
+    ~~ TEST 7: Unterminated interpolation
+    "Hello {name
+
+    ~~ TEST 8: Context depth limit
+    ~~ Test this separately with more than 64 nested strings.
+
+    ~~ TEST 9: Unterminated block comment
+    ~* This block comment is never closed
+
+}

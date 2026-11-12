@@ -1,0 +1,13 @@
+~~ KORA TEST 04: DELIMITERS
+
+~~ Parentheses: ( )
+~~ Braces: { }
+~~ Brackets: [ ]
+~~ Other delimiters: , : . ;
+
+fn main() {
+    let values = [1, 2, 3]
+    let item = values[0]
+    let result = call(item)
+    return
+}

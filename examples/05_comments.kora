@@ -1,0 +1,22 @@
+~~ KORA TEST 05: BOTH COMMENT TYPES
+
+~~ Kora line comments begin with two tildes:
+~~ This entire line should be skipped by the lexer.
+let after_line_comment = 10
+
+~*
+This is a Kora block comment.
+It spans multiple lines.
+The lexer should skip this entire section.
+*~
+
+let after_block_comment = 20
+
+fn main() {
+    let first = 1 ~~ comment after code
+    let second = 2
+
+    ~* A block comment between statements. *~
+
+    return
+}

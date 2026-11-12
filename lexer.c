@@ -1,4 +1,3 @@
-
 #include "lexer.h"
 #include <string.h>
 #include <ctype.h>
@@ -14,7 +13,6 @@ const char* token_type_name(TokenType type) {
         case TOKEN_BOOLEAN: return "BOOLEAN";
         case TOKEN_PITCH: return "PITCH";
         case TOKEN_INTERVAL_UNIT: return "INTERVAL_UNIT";
-        case TOKEN_DURATION_UNIT: return "DURATION_UNIT";
 
         case TOKEN_STRING_START: return "STRING_START";
         case TOKEN_STRING_TEXT: return "STRING_TEXT";
@@ -74,6 +72,76 @@ const char* token_type_name(TokenType type) {
     }
 }
 
+// Get a readable description of a lexical error.
+const char *lexical_error_message(LexicalErrorCode code) {
+    switch (code) {
+        case LEX_ERROR_UNEXPECTED_CHARACTER:
+            return "Unexpected character.";
+
+        case LEX_ERROR_INVALID_NUMBER:
+            return "Malformed numeric literal.";
+
+        case LEX_ERROR_INVALID_PITCH:
+            return "Malformed pitch literal.";
+
+        case LEX_ERROR_INVALID_ESCAPE:
+            return "Invalid string escape sequence.";
+
+        case LEX_ERROR_UNTERMINATED_STRING:
+            return "Unterminated string literal.";
+
+        case LEX_ERROR_UNTERMINATED_BLOCK_COMMENT:
+            return "Unterminated block comment.";
+
+        case LEX_ERROR_INVALID_NEWLINE:
+            return "Invalid standalone carriage return.";
+
+        case LEX_ERROR_UNTERMINATED_INTERPOLATION:
+            return "Unterminated string interpolation.";
+
+        case LEX_ERROR_CONTEXT_LIMIT:
+            return "Maximum nested string/interpolation depth exceeded.";
+
+        default:
+            return "Unknown lexical error.";
+    }
+}
+
+// Get a suggested correction for a lexical error.
+const char *lexical_error_suggestion(LexicalErrorCode code) {
+    switch (code) {
+        case LEX_ERROR_UNEXPECTED_CHARACTER:
+            return "Remove the character or replace it with a valid Kora token.";
+
+        case LEX_ERROR_INVALID_NUMBER:
+            return "Check the numeric format. Use a valid integer or decimal.";
+
+        case LEX_ERROR_INVALID_PITCH:
+            return "Check the pitch notation and provide a valid note and octave.";
+
+        case LEX_ERROR_INVALID_ESCAPE:
+            return "Use a supported escape sequence such as \\n, \\t, or \\\\.";
+
+        case LEX_ERROR_UNTERMINATED_STRING:
+            return "Add a closing double quotation mark (\") and avoid unescaped newlines.";
+
+        case LEX_ERROR_UNTERMINATED_BLOCK_COMMENT:
+            return "Close the block comment using *~.";
+
+        case LEX_ERROR_INVALID_NEWLINE:
+            return "Use LF (\\n) or CRLF (\\r\\n) line endings.";
+
+        case LEX_ERROR_UNTERMINATED_INTERPOLATION:
+            return "Close the interpolation expression using }.";
+
+        case LEX_ERROR_CONTEXT_LIMIT:
+            return "Reduce the nesting depth of strings and interpolations.";
+
+        default:
+            return "Review the source code near the reported location.";
+    }
+}
+
 // Skip spaces and tabs.
 void skip_whitespace(Lexer *lexer) {
     while (lexer->source[lexer->position] == ' ' ||
@@ -91,23 +159,21 @@ int is_identifier_part(char c) {
     return isalnum((unsigned char)c) || c == '_';
 }
 
-
 // Classify reserved words.
-TokenType classify_identifier(const char *word) {
+// Classify reserved words using the lexeme and its actual length.
+TokenType classify_identifier(const char *word, int length) {
     struct KeywordEntry {
         const char *word;
         TokenType type;
     };
 
     static const struct KeywordEntry reserved_words[] = {
-        // Structure
         {"class", TOKEN_KEYWORD},
         {"struct", TOKEN_KEYWORD},
         {"track", TOKEN_KEYWORD},
         {"verse", TOKEN_KEYWORD},
         {"new", TOKEN_KEYWORD},
 
-        // Declarations and functions
         {"const", TOKEN_KEYWORD},
         {"let", TOKEN_KEYWORD},
         {"auto", TOKEN_KEYWORD},
@@ -116,31 +182,26 @@ TokenType classify_identifier(const char *word) {
         {"pure", TOKEN_KEYWORD},
         {"return", TOKEN_KEYWORD},
 
-        // Music settings
         {"tempo", TOKEN_KEYWORD},
         {"volume", TOKEN_KEYWORD},
         {"beat", TOKEN_KEYWORD},
         {"add", TOKEN_KEYWORD},
         {"synch", TOKEN_KEYWORD},
 
-        // Control flow
         {"if", TOKEN_KEYWORD},
         {"else", TOKEN_KEYWORD},
         {"for", TOKEN_KEYWORD},
         {"while", TOKEN_KEYWORD},
         {"break", TOKEN_KEYWORD},
 
-        // Error handling
         {"try", TOKEN_KEYWORD},
         {"catch", TOKEN_KEYWORD},
         {"throw", TOKEN_KEYWORD},
 
-        // Boolean and special values
         {"true", TOKEN_BOOLEAN},
         {"false", TOKEN_BOOLEAN},
         {"current", TOKEN_KEYWORD},
 
-        // Data types
         {"int", TOKEN_TYPE},
         {"float", TOKEN_TYPE},
         {"boolean", TOKEN_TYPE},
@@ -150,7 +211,6 @@ TokenType classify_identifier(const char *word) {
         {"event", TOKEN_TYPE},
         {"pattern", TOKEN_TYPE},
 
-        // Interval units
         {"st", TOKEN_INTERVAL_UNIT},
         {"oct", TOKEN_INTERVAL_UNIT}
     };
@@ -158,14 +218,16 @@ TokenType classify_identifier(const char *word) {
     int count = sizeof(reserved_words) / sizeof(reserved_words[0]);
 
     for (int i = 0; i < count; i++) {
-        if (strcmp(word, reserved_words[i].word) == 0) {
+        size_t keyword_length = strlen(reserved_words[i].word);
+
+        if ((size_t)length == keyword_length &&
+            memcmp(word, reserved_words[i].word, keyword_length) == 0) {
             return reserved_words[i].type;
         }
     }
 
     return TOKEN_IDENTIFIER;
 }
-
 
 // Read an identifier or keyword.
 Token read_identifier(Lexer *lexer) {
@@ -181,16 +243,11 @@ Token read_identifier(Lexer *lexer) {
 
     int length = lexer->position - start;
 
-    if (length >= 256) {
-        length = 255;
-    }
-
-    strncpy(token.lexeme, lexer->source + start, length);
-    token.lexeme[length] = '\0';
-
+    token.lexeme = lexer->source + start;
+    token.length = length;
     token.line = lexer->line;
     token.column = start_column;
-    token.type = classify_identifier(token.lexeme);
+    token.type = classify_identifier(token.lexeme, token.length);
 
     return token;
 }
@@ -202,21 +259,26 @@ Token make_token(Lexer *lexer, TokenType type, int length) {
     int start = lexer->position;
 
     token.type = type;
+    token.lexeme = lexer->source + start;
+    token.length = length;
     token.line = lexer->line;
     token.column = lexer->column;
 
-    if (length >= 256) {
-        length = 255;
-    }
-
-    for (int i = 0; i < length; i++) {
-        token.lexeme[i] = lexer->source[start + i];
-    }
-
-    token.lexeme[length] = '\0';
-
     lexer->position += length;
     lexer->column += length;
+
+    return token;
+}
+
+// Create an error token with a specific classification.
+Token make_error_token(
+    Lexer *lexer,
+    int length,
+    LexicalErrorCode error_code
+) {
+    Token token = make_token(lexer, TOKEN_ERROR, length);
+
+    token.error_code = error_code;
 
     return token;
 }
@@ -226,7 +288,6 @@ Token read_operator_or_delimiter(Lexer *lexer) {
     char current = lexer->source[lexer->position];
     char next = lexer->source[lexer->position + 1];
 
-    // Two-character operators.
     if (current == '+' && next == '=')
         return make_token(lexer, TOKEN_PLUS_ASSIGN, 2);
     if (current == '-' && next == '=')
@@ -262,7 +323,6 @@ Token read_operator_or_delimiter(Lexer *lexer) {
     if (current == '=' && next == '>')
         return make_token(lexer, TOKEN_LAMBDA_ARROW, 2);
 
-    // Single-character operators and delimiters.
     switch (current) {
         case '+': return make_token(lexer, TOKEN_PLUS, 1);
         case '-': return make_token(lexer, TOKEN_MINUS, 1);
@@ -290,7 +350,11 @@ Token read_operator_or_delimiter(Lexer *lexer) {
         case ';': return make_token(lexer, TOKEN_SEMICOLON, 1);
 
         default:
-            return make_token(lexer, TOKEN_ERROR, 1);
+            return make_error_token(
+                lexer,
+                1,
+                LEX_ERROR_UNEXPECTED_CHARACTER
+            );
     }
 }
 
@@ -299,40 +363,52 @@ Token read_number(Lexer *lexer) {
     int length = 0;
     TokenType type = TOKEN_INTEGER;
 
+    // Read the digits before the decimal point.
     while (isdigit((unsigned char)lexer->source[lexer->position + length])) {
         length++;
     }
 
-    if (lexer->source[lexer->position + length] == '.') {
-        if (!isdigit((unsigned char)lexer->source[lexer->position + length + 1])) {
-            length++;
-            return make_token(lexer, TOKEN_ERROR, length);
-        }
+    // A decimal point belongs to a float only when
+    // it is followed by at least one digit.
+    if (lexer->source[lexer->position + length] == '.' &&
+        isdigit((unsigned char)lexer->source[lexer->position + length + 1])) {
 
         type = TOKEN_FLOAT;
         length++;
 
+        // Read the digits after the decimal point.
         while (isdigit((unsigned char)lexer->source[lexer->position + length])) {
             length++;
         }
 
+        // Detect multiple decimal points followed by digits.
         if (lexer->source[lexer->position + length] == '.' &&
             isdigit((unsigned char)lexer->source[lexer->position + length + 1])) {
+
             while (isdigit((unsigned char)lexer->source[lexer->position + length]) ||
                    lexer->source[lexer->position + length] == '.') {
                 length++;
             }
 
-            return make_token(lexer, TOKEN_ERROR, length);
+            return make_error_token(
+                lexer,
+                length,
+                LEX_ERROR_INVALID_NUMBER
+            );
         }
     }
 
+    // Reject numbers immediately followed by identifier characters.
     if (is_identifier_part(lexer->source[lexer->position + length])) {
         while (is_identifier_part(lexer->source[lexer->position + length])) {
             length++;
         }
 
-        return make_token(lexer, TOKEN_ERROR, length);
+        return make_error_token(
+            lexer,
+            length,
+            LEX_ERROR_INVALID_NUMBER
+        );
     }
 
     return make_token(lexer, type, length);
@@ -374,45 +450,31 @@ int is_pitch_literal(Lexer *lexer) {
 
 
 // Read a newline, treating CRLF as one logical newline.
-// A standalone CR is an invalid character.
 Token read_newline(Lexer *lexer) {
-    Token token = {0};
+    char current = lexer->source[lexer->position];
 
-    token.line = lexer->line;
-    token.column = lexer->column;
-
-    // Reject a CR that is not followed by LF.
-    if (lexer->source[lexer->position] == '\r' &&
+    // Reject standalone carriage returns.
+    if (current == '\r' &&
         lexer->source[lexer->position + 1] != '\n') {
 
-        token.type = TOKEN_ERROR;
-        token.lexeme[0] = '\r';
-        token.lexeme[1] = '\0';
-
-        // Consume the invalid character without advancing the line.
-        lexer->position++;
-        lexer->column++;
-
-        return token;
+        return make_error_token(
+            lexer,
+            1,
+            LEX_ERROR_INVALID_NEWLINE
+        );
     }
 
-    // Valid LF or CRLF newline.
-    token.type = TOKEN_NEWLINE;
+    // Determine the physical newline length.
+    int length = (current == '\r') ? 2 : 1;
 
-    int length = 1;
+    // Create a source-slice token.
+    Token token = make_token(
+        lexer,
+        TOKEN_NEWLINE,
+        length
+    );
 
-    if (lexer->source[lexer->position] == '\r' &&
-        lexer->source[lexer->position + 1] == '\n') {
-        length = 2;
-    }
-
-    for (int i = 0; i < length; i++) {
-        token.lexeme[i] = lexer->source[lexer->position + i];
-    }
-
-    token.lexeme[length] = '\0';
-
-    lexer->position += length;
+    // Update logical line tracking.
     lexer->line++;
     lexer->column = 1;
 
@@ -420,11 +482,13 @@ Token read_newline(Lexer *lexer) {
 }
 
 
+
 // Read and skip Kora comments.
 int read_comment(Lexer *lexer, Token *token) {
     const char *source = lexer->source;
 
     if (!lexer->inside_block_comment) {
+
         // Single-line comment.
         if (source[lexer->position] == '~' &&
             source[lexer->position + 1] == '~') {
@@ -435,6 +499,7 @@ int read_comment(Lexer *lexer, Token *token) {
             while (source[lexer->position] != '\0' &&
                    source[lexer->position] != '\n' &&
                    source[lexer->position] != '\r') {
+
                 lexer->position++;
                 lexer->column++;
             }
@@ -447,42 +512,63 @@ int read_comment(Lexer *lexer, Token *token) {
             source[lexer->position + 1] == '*') {
 
             lexer->inside_block_comment = 1;
+
+            // Remember the opening position of the comment.
             lexer->block_comment_start_line = lexer->line;
             lexer->block_comment_start_column = lexer->column;
+            lexer->block_comment_start_position = lexer->position;
 
             lexer->position += 2;
             lexer->column += 2;
+
         } else {
-            *token = make_token(lexer, TOKEN_ERROR, 1);
+            *token = make_error_token(
+                lexer,
+                1,
+                LEX_ERROR_UNEXPECTED_CHARACTER
+            );
+
             return 1;
         }
     }
 
+    // Continue scanning the block comment.
     while (lexer->inside_block_comment) {
         char current = source[lexer->position];
 
+        // Check for end of source.
         if (current == '\0') {
             *token = (Token){0};
 
             token->type = TOKEN_ERROR;
+            token->lexeme =
+                source + lexer->block_comment_start_position;
+            token->length = 2;
+
             token->line = lexer->block_comment_start_line;
             token->column = lexer->block_comment_start_column;
 
-            strcpy(token->lexeme, "~*");
+            token->error_code =
+                LEX_ERROR_UNTERMINATED_BLOCK_COMMENT;
 
             lexer->inside_block_comment = 0;
+
             return 1;
         }
 
+        // Preserve physical newlines inside block comments.
         if (current == '\n' || current == '\r') {
             *token = read_newline(lexer);
             return 1;
         }
 
+        // Detect the closing block-comment delimiter.
         if (current == '*' && source[lexer->position + 1] == '~') {
             lexer->position += 2;
             lexer->column += 2;
+
             lexer->inside_block_comment = 0;
+
             return 0;
         }
 
@@ -493,15 +579,14 @@ int read_comment(Lexer *lexer, Token *token) {
     return 0;
 }
 
+
 // Push a new lexer context onto the stack.
 static int push_context(
     Lexer *lexer,
     LexerContextType type,
     int brace_depth
-)
-{
-    if (lexer->context_depth >= MAX_LEXER_CONTEXTS)
-    {
+) {
+    if (lexer->context_depth >= MAX_LEXER_CONTEXTS) {
         return 0;
     }
 
@@ -517,19 +602,15 @@ static int push_context(
 }
 
 // Remove the most recent lexer context.
-static void pop_context(Lexer *lexer)
-{
-    if (lexer->context_depth > 0)
-    {
+static void pop_context(Lexer *lexer) {
+    if (lexer->context_depth > 0) {
         lexer->context_depth--;
     }
 }
 
 // Get the current lexer context.
-static LexerContext *current_context(Lexer *lexer)
-{
-    if (lexer->context_depth == 0)
-    {
+static LexerContext *current_context(Lexer *lexer) {
+    if (lexer->context_depth == 0) {
         return NULL;
     }
 
@@ -537,60 +618,58 @@ static LexerContext *current_context(Lexer *lexer)
 }
 
 // Read text inside a string.
-
-Token read_string_content(Lexer *lexer)
-{
+Token read_string_content(Lexer *lexer) {
     int length = 0;
 
-    while (lexer->source[lexer->position + length] != '\0')
-    {
+    while (lexer->source[lexer->position + length] != '\0') {
         char current = lexer->source[lexer->position + length];
 
-        // Stop at string or interpolation boundaries.
         if (current == '"' || current == '{' ||
-            current == '\n' || current == '\r')
-        {
+            current == '\n' || current == '\r') {
             break;
         }
 
-        // Validate escape sequences.
-        if (current == '\\')
-        {
+        if (current == '\\') {
             char escaped = lexer->source[lexer->position + length + 1];
 
             if (escaped == '\\' || escaped == '"' ||
                 escaped == '\'' ||
                 escaped == 'n' || escaped == 't' ||
-                escaped == 'r' || escaped == '{')
-            {
+                escaped == 'r' || escaped == '{') {
                 length += 2;
                 continue;
             }
 
-            // Return preceding text before reporting the error.
-            if (length > 0)
-            {
+            if (length > 0) {
                 return make_token(lexer, TOKEN_STRING_TEXT, length);
             }
 
-            int error_length = (escaped == '\0') ? 1 : 2;
-            return make_token(lexer, TOKEN_ERROR, error_length);
+            // Do not consume a physical newline as part of an invalid escape.
+            // Leave it for read_newline() to handle its line-ending rules.
+            int error_length =
+                (escaped == '\0' || escaped == '\n' || escaped == '\r')
+                ? 1
+                : 2;
+
+            return make_error_token(
+                lexer,
+                error_length,
+                LEX_ERROR_INVALID_ESCAPE
+            );
+
         }
 
         length++;
     }
 
-    // Return accumulated string text.
-    if (length > 0)
-    {
+    if (length > 0) {
         return make_token(lexer, TOKEN_STRING_TEXT, length);
     }
 
     char current = lexer->source[lexer->position];
 
     // Start of interpolation.
-    if (current == '{')
-    {
+    if (current == '{') {
         Token token = make_token(
             lexer,
             TOKEN_INTERPOLATION_START,
@@ -601,17 +680,16 @@ Token read_string_content(Lexer *lexer)
                 lexer,
                 LEXER_CONTEXT_INTERPOLATION,
                 1
-            ))
-        {
+            )) {
             token.type = TOKEN_ERROR;
+            token.error_code = LEX_ERROR_CONTEXT_LIMIT;
         }
 
         return token;
     }
 
     // End of the current string.
-    if (current == '"')
-    {
+    if (current == '"') {
         Token token = make_token(
             lexer,
             TOKEN_STRING_END,
@@ -624,10 +702,15 @@ Token read_string_content(Lexer *lexer)
     }
 
     // Unescaped newline inside a string.
-    if (current == '\n' || current == '\r')
-    {
+    if (current == '\n' || current == '\r') {
         Token token = read_newline(lexer);
-        token.type = TOKEN_ERROR;
+
+        // LF and CRLF mean the string is unterminated.
+        // Preserve INVALID_NEWLINE for standalone CR.
+        if (token.type == TOKEN_NEWLINE) {
+            token.type = TOKEN_ERROR;
+            token.error_code = LEX_ERROR_UNTERMINATED_STRING;
+        }
 
         pop_context(lexer);
 
@@ -637,34 +720,60 @@ Token read_string_content(Lexer *lexer)
     // Unterminated string at EOF.
     pop_context(lexer);
 
-    return make_token(lexer, TOKEN_ERROR, 0);
+    return make_error_token(
+        lexer,
+        0,
+        LEX_ERROR_UNTERMINATED_STRING
+    );
 }
 
-
 // Main function for retrieving the next token.
-Token get_next_token(Lexer *lexer)
-{
+Token get_next_token(Lexer *lexer) {
     Token comment_token;
 
     // Check whether the current context is a string.
     LexerContext *context = current_context(lexer);
 
     if (context != NULL &&
-        context->type == LEXER_CONTEXT_STRING)
-    {
+        context->type == LEXER_CONTEXT_STRING) {
         return read_string_content(lexer);
     }
 
     // Skip whitespace and comments.
-    while (1)
-    {
+    while (1) {
         skip_whitespace(lexer);
 
         if (lexer->inside_block_comment ||
-            lexer->source[lexer->position] == '~')
-        {
-            if (read_comment(lexer, &comment_token))
-            {
+            lexer->source[lexer->position] == '~') {
+
+            if (read_comment(lexer, &comment_token)) {
+
+                // Check whether the block comment produced a physical line break.
+                LexerContext *comment_context = current_context(lexer);
+
+                int is_comment_line_break =
+                    comment_token.type == TOKEN_NEWLINE ||
+                    (comment_token.type == TOKEN_ERROR &&
+                    comment_token.error_code == LEX_ERROR_INVALID_NEWLINE);
+
+                // A physical line break inside an active interpolation
+                // must terminate the interpolation context.
+                if (is_comment_line_break &&
+                    comment_context != NULL &&
+                    comment_context->type == LEXER_CONTEXT_INTERPOLATION) {
+
+                    // LF and CRLF become unterminated-interpolation errors.
+                    // Preserve INVALID_NEWLINE for standalone CR.
+                    if (comment_token.type == TOKEN_NEWLINE) {
+                        comment_token.type = TOKEN_ERROR;
+                        comment_token.error_code =
+                            LEX_ERROR_UNTERMINATED_INTERPOLATION;
+                    }
+
+                    // End all active string/interpolation contexts.
+                    lexer->context_depth = 0;
+                }
+
                 return comment_token;
             }
 
@@ -677,32 +786,40 @@ Token get_next_token(Lexer *lexer)
     char current = lexer->source[lexer->position];
 
     // End of source.
-    if (current == '\0')
-    {
-        if (lexer->context_depth > 0)
-        {
-            // An open string or interpolation was never closed.
+    if (current == '\0') {
+        if (lexer->context_depth > 0) {
+            LexerContext *open_context = current_context(lexer);
+
+            LexicalErrorCode error_code =
+                (open_context->type == LEXER_CONTEXT_STRING)
+                ? LEX_ERROR_UNTERMINATED_STRING
+                : LEX_ERROR_UNTERMINATED_INTERPOLATION;
+
             lexer->context_depth = 0;
 
-            return make_token(lexer, TOKEN_ERROR, 0);
+            return make_error_token(lexer, 0, error_code);
         }
 
         return make_token(lexer, TOKEN_EOF, 0);
     }
 
     // Newline handling.
-    if (current == '\n' || current == '\r')
-    {
+    if (current == '\n' || current == '\r') {
         context = current_context(lexer);
 
-        // A newline inside an interpolation is an error.
         if (context != NULL &&
-            context->type == LEXER_CONTEXT_INTERPOLATION)
-        {
-            Token token = read_newline(lexer);
-            token.type = TOKEN_ERROR;
+            context->type == LEXER_CONTEXT_INTERPOLATION) {
 
-            // Reset unfinished string/interpolation contexts.
+            Token token = read_newline(lexer);
+
+            // LF and CRLF mean the interpolation is unterminated.
+            // Preserve INVALID_NEWLINE for standalone CR.
+            if (token.type == TOKEN_NEWLINE) {
+                token.type = TOKEN_ERROR;
+                token.error_code = LEX_ERROR_UNTERMINATED_INTERPOLATION;
+            }
+
+            // End all active string/interpolation contexts.
             lexer->context_depth = 0;
 
             return token;
@@ -712,8 +829,7 @@ Token get_next_token(Lexer *lexer)
     }
 
     // Start of a new string.
-    if (current == '"')
-    {
+    if (current == '"') {
         Token token = make_token(
             lexer,
             TOKEN_STRING_START,
@@ -724,28 +840,25 @@ Token get_next_token(Lexer *lexer)
                 lexer,
                 LEXER_CONTEXT_STRING,
                 0
-            ))
-        {
+            )) {
             token.type = TOKEN_ERROR;
+            token.error_code = LEX_ERROR_CONTEXT_LIMIT;
         }
 
         return token;
     }
 
     // Pitch literals.
-    if (is_pitch_literal(lexer))
-    {
+    if (is_pitch_literal(lexer)) {
         int start = lexer->position;
         int length = 1;
 
         if (lexer->source[start + length] == '#' ||
-            lexer->source[start + length] == 'b')
-        {
+            lexer->source[start + length] == 'b') {
             length++;
         }
 
-        if (lexer->source[start + length] == '-')
-        {
+        if (lexer->source[start + length] == '-') {
             length++;
         }
 
@@ -757,49 +870,52 @@ Token get_next_token(Lexer *lexer)
     // Incomplete pitch literals.
     if (current >= 'A' && current <= 'G' &&
         (lexer->source[lexer->position + 1] == '#' ||
-         lexer->source[lexer->position + 1] == 'b'))
-    {
+         lexer->source[lexer->position + 1] == 'b')) {
+
         int length = 2;
 
         while (isdigit((unsigned char)
-                lexer->source[lexer->position + length]))
-        {
+                lexer->source[lexer->position + length])) {
             length++;
         }
 
-        return make_token(lexer, TOKEN_ERROR, length);
+        return make_error_token(
+            lexer,
+            length,
+            LEX_ERROR_INVALID_PITCH
+        );
     }
 
     // Identifiers and keywords.
-    if (is_identifier_start(current))
-    {
+    if (is_identifier_start(current)) {
         return read_identifier(lexer);
     }
 
     // Numbers.
-    if (isdigit((unsigned char)current))
-    {
+    if (isdigit((unsigned char)current)) {
         return read_number(lexer);
     }
 
     // Malformed leading decimal point.
     if (current == '.' &&
-        isdigit((unsigned char)lexer->source[lexer->position + 1]))
-    {
+        isdigit((unsigned char)lexer->source[lexer->position + 1])) {
+
         int length = 1;
 
         while (isdigit((unsigned char)lexer->source[lexer->position + length]) ||
-               lexer->source[lexer->position + length] == '.')
-        {
+               lexer->source[lexer->position + length] == '.') {
             length++;
         }
 
-        while (is_identifier_part(lexer->source[lexer->position + length]))
-        {
+        while (is_identifier_part(lexer->source[lexer->position + length])) {
             length++;
         }
 
-        return make_token(lexer, TOKEN_ERROR, length);
+        return make_error_token(
+            lexer,
+            length,
+            LEX_ERROR_INVALID_NUMBER
+        );
     }
 
     // Get the current context again.
@@ -808,23 +924,20 @@ Token get_next_token(Lexer *lexer)
     // Handle the end of an interpolation.
     if (current == '}' &&
         context != NULL &&
-        context->type == LEXER_CONTEXT_INTERPOLATION)
-    {
-        if (context->brace_depth == 1)
-        {
+        context->type == LEXER_CONTEXT_INTERPOLATION) {
+
+        if (context->brace_depth == 1) {
             Token token = make_token(
                 lexer,
                 TOKEN_INTERPOLATION_END,
                 1
             );
 
-            // Return to the string context below this interpolation.
             pop_context(lexer);
 
             return token;
         }
 
-        // This is a regular closing brace inside the expression.
         context->brace_depth--;
 
         return read_operator_or_delimiter(lexer);
@@ -833,8 +946,7 @@ Token get_next_token(Lexer *lexer)
     // Track nested braces inside the current interpolation.
     if (current == '{' &&
         context != NULL &&
-        context->type == LEXER_CONTEXT_INTERPOLATION)
-    {
+        context->type == LEXER_CONTEXT_INTERPOLATION) {
         context->brace_depth++;
     }
 

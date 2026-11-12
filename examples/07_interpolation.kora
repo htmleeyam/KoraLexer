@@ -1,0 +1,10 @@
+~~ KORA TEST 07: STRING INTERPOLATION
+
+let name = "Kora"
+let score = 100
+
+let basic = "Hello, {name}"
+let multiple = "{name} scored {score}"
+let expression = "Result: {score + 5}"
+let function_call = "Result: {format("Excellent")}"
+let nested = "Outer: {"Inner: {name}"}"

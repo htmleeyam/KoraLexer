@@ -1,0 +1,13 @@
+fn main() {
+    int score = 100
+    float average = 95.5
+    boolean passed = true
+
+    "Hello, Kora!"
+    "Your score is {score}"
+    "Result: {format("Excellent")}"
+
+    if (passed) {
+        return
+    }
+}

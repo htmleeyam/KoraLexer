@@ -1,0 +1,13 @@
+~~ KORA TEST 01: KEYWORDS AND TYPES
+
+fn main() {
+    int whole = 10
+    float decimal = 12.5
+    boolean enabled = true
+    String message = "Kora"
+    pitch note = C4
+    interval distance = 5 st
+    event cue = 1
+    pattern sequence = 2
+    return
+}

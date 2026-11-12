@@ -1,0 +1,15 @@
+~~ KORA TEST 02: LITERALS
+
+let whole_number = 123
+let decimal_number = 45.67
+let enabled = true
+let disabled = false
+
+let note_one = C4
+let note_two = F#4
+let note_three = Bb2
+let note_four = G3
+
+let semitones = 5 st
+let octaves = 2 oct
+let negative_number = -42
